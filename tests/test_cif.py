@@ -33,87 +33,9 @@ import tempfile
 import unittest
 from unittest import mock
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-DATA = os.path.join(HERE, 'data')
-sys.path.insert(0, ROOT)
-
-from ciftools import _cif  # noqa: E402
-
-try:
-    import gemmi
-except ImportError:  # optional cross-check only
-    gemmi = None
-
-FIXTURES = sorted(f for f in os.listdir(DATA) if f.endswith('.cif'))
-INVALID_CIF = {'empty_atom_site.cif'}  # a loop with no rows (seen in the wild)
-
-MODES = [('atom_site', _cif.DEFAULT_CATEGORIES), ('all', _cif.ALL)]
-
-# Replacement values for the edit-everything tests: shorter, longer, quoted,
-# null, empty, keyword-like and multi-line values.
-CHOICES = ['X', 'two words', "C1'", 'multi\nline', '?', '.', 'a_much_longer_value_than_before',
-           '', '"q"', 'data_z', 'mixed \' and " quotes', '#hash', '-1.5']
-
-
-def read(name):
-    with open(os.path.join(DATA, name), encoding='utf-8', newline='') as fh:
-        return fh.read()
-
-
-def roundtrip(text, categories=_cif.DEFAULT_CATEGORIES, edit=None):
-    """Parse `text`, optionally pass the events through `edit`, write back."""
-    events = _cif.parse(io.StringIO(text, newline=''), categories)
-    if edit is not None:
-        events = edit(events)
-    out = io.StringIO()
-    _cif.write(events, out)
-    return out.getvalue()
-
-
-def all_rows(text):
-    return [(ev.loop.category, list(ev.values))
-            for ev in _cif.parse(io.StringIO(text, newline=''), _cif.ALL)
-            if isinstance(ev, _cif.Row)]
-
-
-def edit_everything(text):
-    """Replace every value of every row; return (output, expected rows)."""
-    expected = []
-
-    def edit(events):
-        for ev in events:
-            if isinstance(ev, _cif.Row):
-                n = len(expected)
-                for j, col in enumerate(ev.loop.columns):
-                    ev[col] = CHOICES[(n + j) % len(CHOICES)]
-                expected.append((ev.loop.category, list(ev.values)))
-            yield ev
-    return roundtrip(text, _cif.ALL, edit), expected
-
-
-def rows(text, category='_atom_site'):
-    return [ev for ev in _cif.parse(io.StringIO(text, newline=''), category)
-            if isinstance(ev, _cif.Row) and ev.loop.category == category]
-
-
-def edit_rows(func, category='_atom_site'):
-    """Build an `edit` callable applying func(row) -> row or None to rows."""
-    def edit(events):
-        for ev in events:
-            if isinstance(ev, _cif.Row) and ev.loop.category == category:
-                ev = func(ev)
-                if ev is None:
-                    continue
-            yield ev
-    return edit
-
-
-def changed_lines(before, after):
-    a, b = before.splitlines(True), after.splitlines(True)
-    if len(a) != len(b):
-        return None
-    return [(x, y) for x, y in zip(a, b) if x != y]
+from support import (  # noqa: E402
+    FIXTURES, INVALID_CIF, MODES, ROOT, _cif, all_rows, changed_lines, edit_everything,
+    edit_rows, gemmi, gemmi_tables, our_tables, read, roundtrip, rows)
 
 
 class TestRoundTrip(unittest.TestCase):
@@ -510,44 +432,13 @@ class TestScheme(unittest.TestCase):
 class TestAgainstGemmi(unittest.TestCase):
     """Compare with an independent parser."""
 
-    @staticmethod
-    def ours(text):
-        """{(block, category): [row values]} for every category, nulls as ''."""
-        tables, block = {}, None
-        for ev in _cif.parse(io.StringIO(text, newline=''), _cif.ALL):
-            if isinstance(ev, _cif.DataBlock):
-                block = ev.name
-            elif isinstance(ev, _cif.Row):
-                vals = ['' if v in ('.', '?') else v for v in ev.values]
-                tables.setdefault((block, ev.loop.category.lower()), []).append(vals)
-        return tables
-
-    @staticmethod
-    def theirs(text):
-        tables = {}
-        for block in gemmi.cif.read_string(text):
-            for item in block:
-                if item.loop is not None:
-                    tags, loop = item.loop.tags, item.loop
-                    cat = tags[0].split('.')[0].lower()
-                    width = loop.width()
-                    for r in range(loop.length()):
-                        vals = [gemmi.cif.as_string(loop[r, c]) for c in range(width)]
-                        tables.setdefault((block.name, cat), []).append(vals)
-                elif item.pair is not None:
-                    tag, value = item.pair
-                    cat = tag.split('.')[0].lower()
-                    rows_ = tables.setdefault((block.name, cat), [[]])
-                    rows_[0].append(gemmi.cif.as_string(value))
-        return tables
-
     def test_same_values_as_gemmi(self):
         for name in FIXTURES:
             if name in INVALID_CIF:
                 continue
             with self.subTest(fixture=name):
                 text = read(name)
-                self.assertEqual(self.ours(text), self.theirs(text))
+                self.assertEqual(our_tables(text), gemmi_tables(text))
 
     def test_every_value_edited_is_valid(self):
         for name in FIXTURES:
@@ -555,7 +446,7 @@ class TestAgainstGemmi(unittest.TestCase):
                 continue
             with self.subTest(fixture=name):
                 out, _ = edit_everything(read(name))
-                self.assertEqual(self.ours(out), self.theirs(out))
+                self.assertEqual(our_tables(out), gemmi_tables(out))
 
     def test_edited_output_is_valid(self):
         def scramble(row):
@@ -571,7 +462,7 @@ class TestAgainstGemmi(unittest.TestCase):
                 continue
             with self.subTest(fixture=name):
                 out = roundtrip(read(name), edit=edit_rows(scramble))
-                self.assertEqual(self.ours(out), self.theirs(out))
+                self.assertEqual(our_tables(out), gemmi_tables(out))
 
 
 if __name__ == '__main__':

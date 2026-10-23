@@ -92,7 +92,9 @@ _WHITESPACE = ' \t\r\n\f\v'
 _SPECIAL_START = frozenset('_#$\'"[];')
 _HAS_WHITESPACE = re.compile(r'\s').search
 _BARE_RUN = re.compile(r'\S+').finditer
-_WS_SPLIT = re.compile(r'(\s+)').split
+# Values that never need quotes: no whitespace, quotes or special first
+# character, and no '_' (so they cannot be a keyword such as data_x).
+_PLAIN = re.compile(r'[A-Za-z0-9.+\-][A-Za-z0-9.+\-*:,()/]*\Z').match
 _DQUOTE_BREAK = re.compile(r'"\s').search
 
 
@@ -180,22 +182,26 @@ class Row:
 
     Read and modify values by column name: `row['B_iso_or_equiv'] = '10.00'`.
     Values are plain strings; CIF nulls are the strings '.' and '?'.
-    Always modify through item assignment so the writer notices the change.
+
+    The values of a row read from a file are a tuple, so they cannot be
+    changed behind the writer's back (`row.values[3] = 'x'` raises
+    TypeError); the first item assignment turns them into a list.
     """
 
-    # _orig: None while untouched, {index: original value} for the columns
-    # assigned since, or _NEW for a row that was never read from a file.
+    # _orig: None while untouched, the original values tuple once modified,
+    # or _NEW for a row that was never read from a file.
     __slots__ = ('loop', 'values', 'lead', 'text', 'lineno', '_orig')
 
     def __init__(self, loop, values, lead='', text=None, lineno=None):
         self.loop = loop
-        self.values = values if isinstance(values, list) else list(values)
         self.lead = lead  # whitespace/comments preceding the first value
         self.lineno = lineno
         if text is None:
+            self.values = list(values)
             self.text = ''
             self._orig = _NEW
         else:
+            self.values = values if type(values) is tuple else tuple(values)
             self.text = text
             self._orig = None
 
@@ -209,11 +215,9 @@ class Row:
         if not isinstance(value, str):
             value = str(value)
         i = self.loop.index(column)
-        orig = self._orig
-        if orig is None:
-            self._orig = {i: self.values[i]}
-        elif orig is not _NEW and i not in orig:
-            orig[i] = self.values[i]
+        if self._orig is None:
+            self._orig = self.values
+            self.values = list(self.values)
         self.values[i] = value
 
     def __contains__(self, column):
@@ -237,10 +241,10 @@ class Row:
         orig = self._orig
         if orig is None:
             return []
-        if orig is _NEW:
-            return list(range(len(self.values)))
         values = self.values
-        return sorted(i for i, old in orig.items() if values[i] != old)
+        if orig is _NEW or len(values) != len(orig):
+            return list(range(len(values)))
+        return [i for i, (new, old) in enumerate(zip(values, orig)) if new is not old and new != old]
 
     def __repr__(self):
         return 'Row({!r})'.format(self.values)
@@ -310,6 +314,25 @@ def _tokens(line, lineno=None):
             yield m.start('bare'), m.end('bare'), tok, kind
         else:
             yield m.start(group) - 1, m.end(group) + 1, m.group(group), VALUE
+
+
+def _unquote_tokens(parts):
+    """Unquote whitespace-free tokens such as 'x' or "O5'".
+
+    Returns None if a token starts with a quote but does not end with the
+    same quote (a quoted value containing whitespace, or an error); the
+    caller then uses the full tokenizer.
+    """
+    out = []
+    for tok in parts:
+        first = tok[0]
+        if first == "'" or first == '"':
+            if len(tok) < 2 or tok[-1] != first:
+                return None
+            out.append(tok[1:-1])
+        else:
+            out.append(tok)
+    return out
 
 
 def _strip_eol(text):
@@ -607,11 +630,14 @@ class _Reader:
                 lines.push(line)
                 break
 
-            # Fast path: one complete, unquoted row on one line
-            if (not vals and "'" not in line and '"' not in line and '#' not in line
-                    and ' _' not in line and '\t_' not in line):
+            # Fast path: one complete row on one line, without comments. If
+            # it splits into exactly ncol tokens, no value contains
+            # whitespace, so a quoted value is a single token such as "O5'".
+            if not vals and '#' not in line and ' _' not in line and '\t_' not in line:
                 parts = line.split()
-                if len(parts) == ncol:
+                if len(parts) == ncol and ("'" in line or '"' in line):
+                    parts = _unquote_tokens(parts)
+                if parts is not None and len(parts) == ncol:
                     nrows += 1
                     indent = len(line) - len(s)
                     if indent or lead:
@@ -622,7 +648,7 @@ class _Reader:
                         yield Row(loop, parts, '', line, lines.lineno)
                     line = lines.next()
                     continue
-                if not parts:
+                if parts == []:
                     lead.append(line)
                     line = lines.next()
                     continue
@@ -710,7 +736,9 @@ def quote(value, eol='\n'):
     """
     if not isinstance(value, str):
         value = str(value)
-    if value == '.' or value == '?':
+    if _PLAIN(value):  # numbers, names, '.', ...: the common case
+        return value
+    if value == '?':
         return value
     if not value:
         return "''"
@@ -756,24 +784,33 @@ def _absorb(gap, delta):
 
 
 def _splice_bare(text, values, changed):
-    """Fast _splice for rows made only of bare values; None if not applicable."""
-    if ("'" in text or '"' in text or '#' in text or text[0] in _WHITESPACE
-            or text[0] == ';' or '\n;' in text):
+    """Fast _splice for rows whose tokens contain no whitespace; None if not
+    applicable.
+
+    Then token i is found with str.split(None, i). Changes are applied from
+    the last one backwards, which leaves the earlier tokens where they were.
+    """
+    if '#' in text or text[0] in _WHITESPACE or text[0] == ';' or '\n;' in text:
         return None
-    parts = _WS_SPLIT(text)  # token, separator, token, ..., [tail, '']
-    ntok = len(parts) // 2 if parts[-1] == '' else (len(parts) + 1) // 2
-    if ntok != len(values):
-        return None
-    for i in changed:
+    if ("'" in text or '"' in text) and len(text.split()) != len(values):
+        return None  # a quoted value contains whitespace
+    for i in reversed(changed):
         tok = quote(values[i])
         if tok[0] == ';':
             return None
-        j = 2 * i
-        delta = len(tok) - len(parts[j])
-        parts[j] = tok
-        if delta and j + 1 < len(parts):
-            parts[j + 1] = _absorb(parts[j + 1], delta)
-    return ''.join(parts)
+        rest = text.split(None, i)[i] if i else text  # text from token i on
+        start = len(text) - len(rest)
+        old_len = len(rest.split(None, 1)[0])
+        end = start + old_len
+        after = text[end:]
+        delta = len(tok) - old_len
+        if delta:  # let the spaces after the token absorb the length change
+            stripped = after.lstrip(' ')
+            gap = len(after) - len(stripped)
+            if gap and stripped and stripped[0] not in _WHITESPACE:
+                after = ' ' * (max(1, gap - delta) if delta > 0 else gap - delta) + stripped
+        text = text[:start] + tok + after
+    return text
 
 
 def _splice(text, spans, values, changed):
@@ -833,15 +870,19 @@ def _format_row(row, loop):
     values = _values_for(row, loop)
     text = row.text
     if row.loop is loop and text:  # a row read from the file
-        changed = row._changed()
-        if not changed:
+        orig = row._orig
+        if orig is None:
             return text
-        out = _splice_bare(text, values, changed)
-        if out is not None:
-            return out
-        spans = _token_spans(text)
-        if len(spans) == len(values):
-            return _splice(text, spans, values, changed)
+        if len(orig) == len(values):
+            changed = row._changed()
+            if not changed:
+                return text
+            out = _splice_bare(text, values, changed)
+            if out is not None:
+                return out
+            spans = _token_spans(text)
+            if len(spans) == len(values):
+                return _splice(text, spans, values, changed)
     return _fresh_row(values)
 
 

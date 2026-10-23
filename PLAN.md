@@ -59,8 +59,8 @@ complex to duplicate 48 times.
    e.g. atom names like `"O5'"`). Unmodified rows are written back as they were, so diffs stay small.
 5. **Identifier scheme switch** (`--label` / `--auth`): one global convention for which identifiers a tool uses
    for selection and editing. **Default: `auth_*`**, because that matches what users see in PyMOL/ChimeraX and in
-   papers, and it matches pdb-tools behaviour. Tools that *edit* an identifier edit the chosen scheme. With
-   `--both` they edit both.
+   papers, and it matches pdb-tools behaviour. Tools that *edit* an identifier edit only the chosen scheme and
+   leave the other untouched; there is deliberately no `--both` (see §7, decision 3).
 6. **Consistency helpers**: after deleting atoms, drop orphaned rows in dependent loops (`_atom_site_anisotrop`
    by atom id, `_struct_conn` by partner atoms). Optionally, prune `_struct_asym`/`_entity`/`_pdbx_poly_seq_scheme`.
    This is opt-in (`--prune`) in v1, so that by default we never silently rewrite metadata.
@@ -196,6 +196,10 @@ Decided (2026-10-23):
 
 1. **Default identifier scheme: `auth_*`.** Switch per call with `--label`, or globally with `CIFTOOLS_SCHEME=label`.
 2. **Core is strictly stdlib.** gemmi is used only by the tests (cross-checks) and, later, as an optional extra.
+3. **Edits change one identifier scheme, never both.** One author chain usually spans several label chains
+   (protein, ligands, waters), and `label_seq_id` is tied to the deposited sequence, so editing both at once would
+   merge separate instances or break the sequence link. Copying one scheme onto the other is left to the planned
+   `cif_label2auth` / `cif_auth2label` tools.
 
 Still open:
 
@@ -257,3 +261,114 @@ in the real-file check:
 - more content after a closing `;` inside a key–value category.
 
 **Not done:** the CI workflow (`.github/workflows/tests.yml`) has not run yet, because there is no GitHub remote.
+
+## 9. Phase 1 status (2026-10-23): done
+
+**The 21 core tools:**
+
+| Group | Tools |
+|---|---|
+| Select / delete | `cif_selchain`, `cif_delchain`, `cif_selres`, `cif_delres`, `cif_selresname`, `cif_delresname`, `cif_selatom`, `cif_selelem`, `cif_selhetatm`, `cif_delhetatm`, `cif_selaltloc`, `cif_selmodel` |
+| Edit | `cif_chain`, `cif_rplchain`, `cif_b`, `cif_occ`, `cif_reres`, `cif_shiftres` |
+| Inspect | `cif_wc`, `cif_tofasta` |
+| Fetch | `cif_fetch` |
+
+All 21 are registered as console scripts in `pyproject.toml`. Each tool has pdb-tools' layout: the docstring is
+its `--help` text, then `check_input`, `run` and `main`.
+
+**Shared modules:**
+- `ciftools/_cli.py`: pdb-tools-style argument handling. It reads `[-option] [file]` or stdin, takes
+  `--auth`/`--label` and `--help`, writes `ERROR!! ...` plus the usage with exit code 1, and exits quietly on a
+  closed pipe.
+- `ciftools/_atoms.py`:
+  - `Fields`, the identifier columns for the chosen scheme;
+  - `filter_atoms()`, for the select/delete tools;
+  - `rename()`, for chain and residue edits;
+  - `Source`, which lets a tool read its input twice. stdin is copied to a temporary file, kept in memory up to
+    32 MB.
+
+**Phase-0 problems addressed:**
+1. **Speed.**
+   - Edits splice a value in using `str.split(None, i)`, and `quote()` has a shortcut for plain values. On the
+     synthetic 1M-atom benchmark, a one-column edit went from 5.6 to 4.1 s, and three columns from 7.1 to 6.1 s.
+     A copy stays at about 1.5 s, and peak memory stays at about 0.01 MB.
+   - Rows holding quoted values without spaces (e.g. `"O5'"` in every nucleic acid) now take the fast path. That
+     made `cif_delhetatm` on the 80S ribosome (4V6X, 237k atoms) go from 2.5 to 1.3 s.
+2. **Related tables.** Select/delete tools remove `_atom_site_anisotrop` rows (matched by atom id) and
+   `_struct_conn` links whose partner atom was removed. A link counts as dangling only if its partner existed in
+   the input. Chain and residue edits update the same two tables.
+3. **The API trap.** A row read from a file holds its values as a tuple, so `row.values[i] = x` raises an error
+   instead of being silently lost.
+4. **Real files in the tests.** See below.
+
+Still open:
+- the CI workflow, which is waiting for a push;
+- adding or removing columns (phase 2);
+- the three unsupported layouts;
+- a quoted `'.'` being read the same as a null.
+
+**Real-entry tests** (`tests/test_real.py`; the set is listed in `tests/real_set.txt` and fetched with
+`tests/fetch_real.py`):
+- **The set:** 1EJG, 4HHB, 1D3Z, 1PPB, 1EHZ, 1KX5, 2RH1, 6VXX, 1JJ2 and 4V6X. Together they cover a tiny
+  high-resolution structure with alternate locations and anisotropic B, a tetramer with hemes, an NMR ensemble,
+  insertion codes, tRNA, a protein–DNA complex, a membrane protein, a cryo-EM glycoprotein, and two ribosomes. One
+  ribosome is mmCIF-only.
+- **The layer:** a byte-exact round trip; gemmi reading identical values in every category; editing every value
+  of every row.
+- **Every tool on every entry:**
+  - the output re-reads identically, and gemmi reads it the same way (entries under 30k atoms);
+  - select X + delete X give back every atom;
+  - edit tools keep the atom count;
+  - no tool creates an anisotropic row or link that does not match an atom.
+- **Bugs this found and fixed:**
+  - In the first pass, the keep-test was only run on link partners, which broke `cif_delres -::N`, a tool that
+    counts residues (dangling links on 4V6X and 6VXX).
+  - `cif_reres` mismatched the anisotropic rows of residues modelled as two residue types (1EJG PRO/SER and
+    LEU/ILE).
+  - Quoted atom names were slow.
+
+**Cross-check against pdb-tools** (`tests/test_vs_pdbtools.py`): each structure is converted to PDB format, the
+same command line goes to `pdb_X` and `cif_X`, and the atoms (or the text, for wc/tofasta) are compared.
+
+Over 14 structures (5 fixtures + 9 real entries; 4V6X does not fit the PDB format), 29 command lines each:
+
+| Outcome | Count | Cases |
+|---|---|---|
+| Identical | 395 of 406 | Atoms, order, occupancies, B and coordinates; `wc` and `tofasta` text |
+| Documented deviations | 8 | `selaltloc` on the fixture, 1EJG and 1PPB; `tofasta` on 1KX5 (DNA) |
+| Not comparable | 3 | `reres` / `shiftres` on 1JJ2, where pdb-tools stops at residue 9999 |
+
+The cross-check also showed that `cif_selmodel` should return a single-model file whole, as `pdb_selmodel`
+does. That is fixed.
+
+**Deliberate deviations from pdb-tools** (each is noted in the tool's `--help`):
+- **Chain identifiers.** They are case-sensitive and may be longer than one character (`pdb_delchain` upper-cases
+  them). mmCIF has no blank chain, so `cif_chain` needs an identifier.
+- **`cif_selaltloc`.** It chooses one location per residue, keeps atoms without an altloc, and keeps the atom
+  order.
+  - `pdb_selaltloc` compares residue numbers as text and ignores insertion codes. On 1PPB it loses
+    insertion-code residues; on 1EJG it drops backbone atoms with `-A`.
+- **`cif_selhetatm`.** It keeps the metadata categories; `pdb_selhetatm` drops every non-HETATM record.
+- **`cif_selelem`.** It matches elements ignoring case.
+- **`cif_delres`.** It accepts a one-residue range (`-5:5`).
+- **`cif_tofasta`.** It maps DNA (DA, DC, DG, DT) to bases, where `pdb_tofasta` gives X. It reads the first model
+  only, never writes empty records, and adds `-seqres`.
+- **`cif_wc`.** The `-a` / `-h` lists show atom names and HETATM residue names. (`pdb_wc -h` lists the first 3
+  characters of atom names.)
+- **`cif_fetch`.**
+  - It exits 1 on a failed download, where `pdb_fetch` exits 0.
+  - It accepts extended PDB ids and AlphaFold DB ids, and `-biounit` uses `<id>-assembly1.cif.gz`.
+- **Residue numbers.** There are no limits (pdb-tools stops at 9999). `--label` renumbering warns that it breaks
+  the link to `_entity_poly_seq`.
+- **Help.** It is `--help` only, because `-h` is a real option (`cif_wc -h`, chain `h`).
+
+**Known limitations:**
+- These categories are not updated by any tool: `_struct_conf`, `_struct_sheet_range`, `_pdbx_poly_seq_scheme`,
+  `_pdbx_struct_assembly_gen`, `_struct_site_gen`, `_pdbx_struct_conn_angle`, ...
+- `cif_selaltloc` leaves `_struct_conn.pdbx_ptnr*_label_alt_id` as it was.
+- Anisotropic rows placed *before* `_atom_site` are not pruned. No real file has been seen with that order.
+- `cif_fetch` was checked live on one RCSB entry (byte-identical to the copy fetched earlier). The AlphaFold DB
+  path is tested with a fake network only.
+- With the real entries fetched and gemmi + pdb-tools installed, the full suite (93 tests) takes about 6.5 minutes.
+  Most of that is the edit-every-value and gemmi checks on the two ribosomes and the pdb-tools cross-check.
+  Without the real entries, it takes about 1 second.

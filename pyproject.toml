@@ -18,11 +18,30 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["gemmi"]
+test = ["gemmi", "pdb-tools"]
 
-# Console scripts (cif_selchain, cif_delhetatm, ...) are added from phase 1 on, e.g.:
-# [project.scripts]
-# cif_selchain = "ciftools.cif_selchain:main"
+[project.scripts]
+cif_b = "ciftools.cif_b:main"
+cif_chain = "ciftools.cif_chain:main"
+cif_delchain = "ciftools.cif_delchain:main"
+cif_delhetatm = "ciftools.cif_delhetatm:main"
+cif_delres = "ciftools.cif_delres:main"
+cif_delresname = "ciftools.cif_delresname:main"
+cif_fetch = "ciftools.cif_fetch:main"
+cif_occ = "ciftools.cif_occ:main"
+cif_reres = "ciftools.cif_reres:main"
+cif_rplchain = "ciftools.cif_rplchain:main"
+cif_selaltloc = "ciftools.cif_selaltloc:main"
+cif_selatom = "ciftools.cif_selatom:main"
+cif_selchain = "ciftools.cif_selchain:main"
+cif_selelem = "ciftools.cif_selelem:main"
+cif_selhetatm = "ciftools.cif_selhetatm:main"
+cif_selmodel = "ciftools.cif_selmodel:main"
+cif_selres = "ciftools.cif_selres:main"
+cif_selresname = "ciftools.cif_selresname:main"
+cif_shiftres = "ciftools.cif_shiftres:main"
+cif_tofasta = "ciftools.cif_tofasta:main"
+cif_wc = "ciftools.cif_wc:main"
 
 [tool.setuptools]
 packages = ["ciftools"]
