@@ -91,6 +91,46 @@ def parse_args(args, doc, takes_option=True, needs_option=False):
     return _cif.open_input(path), option, scheme
 
 
+def parse_files(args, doc, minimum=1, takes_option=False):
+    """Parse `[-option] file [file ...]` plus `--auth`/`--label`, for tools
+    that read several files (they do not read stdin).
+
+    Returns (paths, option, scheme).
+    """
+    scheme, option, paths = None, None, []
+    for arg in args:
+        if arg == '--help':
+            sys.stdout.write(doc)
+            sys.exit(0)
+        if arg in ('--auth', '--label'):
+            scheme = arg[2:]
+        elif arg.startswith('-') and len(arg) > 1 and option is None and not paths:
+            option = arg[1:]
+        else:
+            paths.append(arg)
+    try:
+        scheme = _cif.get_scheme(scheme)
+    except ValueError as err:
+        fail(doc, err)
+    if option is not None and not takes_option:
+        fail(doc, 'This tool takes no options: {!r}'.format('-' + option))
+    if not paths and not args:
+        sys.stderr.write(doc)
+        sys.exit(1)
+    if len(paths) < minimum:
+        fail(doc, 'This tool needs at least {} file{}.'.format(minimum, 's' if minimum > 1 else ''))
+    for path in paths:
+        if not os.path.isfile(path):
+            fail(doc, 'File not found or not readable: {!r}'.format(path))
+    return paths, option, scheme
+
+
+def write_file(path, events):
+    """Write an event stream to a new file (used by the split tools)."""
+    with open(path, 'w', encoding=_cif.ENCODING, errors=_cif.ERRORS, newline='') as out:
+        _cif.write(events, out)
+
+
 def output(events, fhandle=None):
     """Write an event stream to stdout and exit.
 

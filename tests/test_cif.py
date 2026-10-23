@@ -360,6 +360,55 @@ class TestEdits(unittest.TestCase):
                 self.assertEqual(all_rows(out), expected)
                 self.assertEqual(roundtrip(out, _cif.ALL), out)  # output is stable
 
+    def test_moved_rows_with_appended_column(self):
+        text = read('wwpdb_like.cif')
+
+        def add_note(events):
+            for ev in events:
+                if isinstance(ev, _cif.Loop) and ev.category == '_atom_site':
+                    new = ev.with_columns(ev.columns + ['pdbx_note'])
+                    yield new
+                elif isinstance(ev, _cif.Row) and ev.loop.category == '_atom_site':
+                    extra = {'pdbx_note': 'n' + ev['id']}
+                    if ev['id'] == '2':
+                        extra['B_iso_or_equiv'] = '99.99'
+                    if ev['id'] == '3':
+                        extra['pdbx_note'] = 'two\nlines'
+                    yield ev.moved(new, extra)
+                else:
+                    yield ev
+        out = roundtrip(text, edit=add_note)
+        self.assertIn('_atom_site.pdbx_note\n', out)
+        before, after = rows(text), rows(out)
+        self.assertEqual([a['pdbx_note'] for a in after[:4]], ['n1', 'n2', 'two\nlines', 'n4'])
+        for old, new in zip(before, after):
+            for col in old.loop.columns:
+                expected = '99.99' if (col == 'B_iso_or_equiv' and old['id'] == '2') else old[col]
+                self.assertEqual(new[col], expected)
+        first = text.splitlines(True)[[i for i, l in enumerate(text.splitlines()) if
+                                        l.startswith('ATOM   1 ')][0]]
+        self.assertIn(first.rstrip() + ' n1 \n', out)  # original text kept, value appended
+        self.assertEqual(roundtrip(out, _cif.ALL), out)
+
+    def test_moved_rows_with_other_layout(self):
+        text = read('nmr_models.cif')
+
+        def reorder(events):
+            for ev in events:
+                if isinstance(ev, _cif.Loop):
+                    new = ev.with_columns(['id', 'extra'] + [c for c in ev.columns if c != 'id'])
+                    yield new
+                elif isinstance(ev, _cif.Row):
+                    yield ev.moved(new, {'extra': 'x y'})
+                else:
+                    yield ev
+        out = roundtrip(text, edit=reorder)
+        after = rows(out)
+        self.assertEqual(after[0].loop.columns[:2], ['id', 'extra'])
+        self.assertEqual([a['extra'] for a in after], ['x y'] * 6)
+        self.assertEqual([a.as_dict() for a in rows(text)],
+                         [{k: v for k, v in a.as_dict().items() if k != 'extra'} for a in after])
+
     def test_pairs_edit_changes_one_line(self):
         text = read('pairs_atom_site.cif')
 

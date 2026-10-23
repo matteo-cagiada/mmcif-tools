@@ -8,27 +8,43 @@ has used since 2014.
 cif_fetch 1brs | cif_selchain -A,D | cif_delhetatm | cif_reres -1 > clean.cif
 ```
 
-**Status: phase 1 (the 21 core tools) done.** The roadmap, the pdb-tools → cif-tools mapping and the design
-decisions are in [PLAN.md](PLAN.md).
+**Status: phases 1 and 2 done: 42 tools,** covering every pdb-tools tool that has an mmCIF meaning. The
+roadmap, the pdb-tools → cif-tools mapping and the design decisions are in [PLAN.md](PLAN.md).
 
 ## Tools
 
-| Tool | What it does |
-|---|---|
-| `cif_fetch` | Download an entry from the RCSB (or `-biounit`), or an AlphaFold DB model (`AF-P69905-F1`) |
-| `cif_selchain` / `cif_delchain` | Keep / remove chains (`-A,B`) |
-| `cif_selres` / `cif_delres` | Keep / remove residues by number (`-1:10,20:30`, `-::5`) |
-| `cif_selresname` / `cif_delresname` | Keep / remove residues by name (`-HOH`) |
-| `cif_selatom` | Keep atoms by name (`-CA,C,N,O`) |
-| `cif_selelem` | Keep atoms by element (`-C,N`) |
-| `cif_selhetatm` / `cif_delhetatm` | Keep / remove HETATM records (ligands, ions, waters) |
-| `cif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
-| `cif_selmodel` | Keep models (`-1,3`) |
-| `cif_chain` / `cif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |
-| `cif_reres` / `cif_shiftres` | Renumber residues from a number / shift them by a number |
-| `cif_b` / `cif_occ` | Set B-factors / occupancies |
-| `cif_wc` | Summary: models, chains, residues, atoms, ... |
-| `cif_tofasta` | Sequence in FASTA format (`-multi`, `-seqres`) |
+| Group | Tool | What it does |
+|---|---|---|
+| Fetch / convert | `cif_fetch` | Download an entry from the RCSB (or `-biounit`), or an AlphaFold DB model (`AF-P69905-F1`) |
+| | `cif_topdb` / `cif_frompdb` | Convert to / from the PDB format (`cif_frompdb` assigns label identifiers) |
+| Select / delete | `cif_selchain` / `cif_delchain` | Keep / remove chains (`-A,B`) |
+| | `cif_selres` / `cif_delres` | Keep / remove residues by number (`-1:10,20:30`, `-::5`) |
+| | `cif_selresname` / `cif_delresname` | Keep / remove residues by name (`-HOH`) |
+| | `cif_selatom` | Keep atoms by name (`-CA,C,N,O`) |
+| | `cif_selelem` / `cif_delelem` | Keep / remove atoms by element (`-C,N`, `-H`) |
+| | `cif_selhetatm` / `cif_delhetatm` | Keep / remove HETATM records (ligands, ions, waters) |
+| | `cif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
+| | `cif_selmodel` | Keep models (`-1,3`) |
+| | `cif_head` | Keep the first N atoms (`-100`) |
+| | `cif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`) |
+| | `cif_intersect` | Keep the atoms of the first file found in all the others |
+| Edit | `cif_chain` / `cif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |
+| | `cif_reres` / `cif_shiftres` | Renumber residues from a number / shift them by a number |
+| | `cif_fixinsert` (`cif_delinsertion`) | Remove insertion codes, shifting the numbering |
+| | `cif_reatom` | Renumber atom ids |
+| | `cif_rplresname` | Rename a residue type (`-HIP:HIS`) |
+| | `cif_uniqname` | Rename ligand atoms C1, C2, O1, … |
+| | `cif_element` | Assign elements from atom names (`-all` to redo all) |
+| | `cif_b` / `cif_occ` | Set B-factors / occupancies |
+| Models / files | `cif_splitchain` / `cif_splitmodel` | Write one file per chain / model |
+| | `cif_mkensemble` / `cif_chkensemble` | Build a multi-model file / check its models match |
+| | `cif_merge` | Merge the atoms of several files into one |
+| Inspect / format | `cif_wc` | Summary: models, chains, residues, atoms, … |
+| | `cif_tofasta` | Sequence in FASTA format (`-multi`, `-seqres`) |
+| | `cif_gap` | Report chain breaks |
+| | `cif_sort` | Sort atoms by chain and residue |
+| | `cif_tidy` | Rewrite in a uniform, aligned layout |
+| | `cif_validate` | Check syntax, coordinates and consistency |
 
 Each tool prints its usage with `--help`. The options follow pdb-tools: one option (starting with `-`) and one
 file. When no file is given, the tool reads stdin. Negative numbers need a double dash (`cif_shiftres --5`). Input
@@ -48,8 +64,11 @@ files may be gzip-compressed.
 - **No segment IDs.** mmCIF has no segment identifier, so the segment tools (`pdb_seg`, `pdb_selseg`, ...) have no
   equivalent.
 
+- **Names in both schemes.** Residue and atom names are the same chemical identity in both schemes, so
+  `cif_rplresname` and `cif_uniqname` change both name columns.
+
 Where pdb-tools has a bug, the tool says so in its `--help` and does not copy it. The deviations are listed in
-PLAN.md §9.
+PLAN.md §9 and §10.
 
 ## Install (development)
 

@@ -103,6 +103,55 @@ def getter(*positions):
     return lambda values: tuple(None if p is None else values[p] for p in positions)
 
 
+# Elements known to pdb_element.
+ELEMENTS = frozenset((
+    'H', 'D', 'HE', 'LI', 'BE', 'B', 'C', 'N', 'O', 'F', 'NE', 'NA', 'MG', 'AL', 'SI', 'P', 'S',
+    'CL', 'AR', 'K', 'CA', 'SC', 'TI', 'V', 'CR', 'MN', 'FE', 'CO', 'NI', 'CU', 'ZN', 'GA', 'GE',
+    'AS', 'SE', 'BR', 'KR', 'RB', 'SR', 'Y', 'ZR', 'NB', 'MO', 'TC', 'RU', 'RH', 'PD', 'AG', 'CD',
+    'IN', 'SN', 'SB', 'TE', 'I', 'XE', 'CS', 'BA', 'LA', 'CE', 'PR', 'ND', 'PM', 'SM', 'EU', 'GD',
+    'TB', 'DY', 'HO', 'ER', 'TM', 'YB', 'LU', 'HF', 'TA', 'W', 'RE', 'OS', 'IR', 'PT', 'AU', 'HG',
+    'TL', 'PB', 'BI', 'PO', 'AT', 'RN', 'FR', 'RA', 'AC', 'TH', 'PA', 'U', 'NP', 'PU', 'AM', 'CM',
+    'BK', 'CF', 'ES', 'FM', 'MD', 'NO', 'LR', 'RF', 'DB', 'SG', 'BH', 'HS', 'MT'))
+
+STANDARD_RESIDUES = frozenset((
+    'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET',
+    'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL', 'UNK',
+    'A', 'C', 'G', 'U', 'I', 'DA', 'DC', 'DG', 'DT', 'DU', 'DI', 'N', 'DN'))
+
+# Two-letter elements recognised at the start of a ligand atom name. CA, NA,
+# HG, CD, NE, ... are left out: in ligands they are mostly carbon, nitrogen
+# or hydrogen names (e.g. NA-ND of heme are nitrogens).
+LIGAND_ELEMENTS = frozenset(('CL', 'BR', 'FE', 'ZN', 'MG', 'MN', 'CU', 'CO', 'NI', 'SE', 'MO',
+                             'PT', 'AU', 'AG', 'LI', 'RU', 'RH', 'IR', 'OS', 'GD', 'YB', 'TB'))
+
+
+def guess_element(name, resname='', hetatm=False):
+    """Element of an atom from its name (upper case), or None.
+
+    mmCIF names carry no column alignment, so the rules are:
+      1. an atom named like its residue is that element (ZN in ZN, CA in CA)
+      2. SE in MSE / SEC is selenium
+      3. in ligands (HETATM, not a standard residue) a name starting with a
+         two-letter element of LIGAND_ELEMENTS is that element (CL1, FE)
+      4. otherwise the first letter of the name, after leading digits
+    """
+    alpha = name.lstrip('0123456789')
+    end = 0
+    while end < len(alpha) and alpha[end].isalpha():
+        end += 1
+    alpha = alpha[:end].upper()
+    if not alpha:
+        return None
+    residue = resname.upper()
+    if alpha == residue and alpha in ELEMENTS:
+        return alpha
+    if residue in ('MSE', 'SEC') and alpha.startswith('SE'):
+        return 'SE'
+    if hetatm and residue not in STANDARD_RESIDUES and alpha[:2] in LIGAND_ELEMENTS:
+        return alpha[:2]
+    return alpha[0] if alpha[0] in ELEMENTS else None
+
+
 def parse_ids(option):
     """'A,B, C' -> ['A', 'B', 'C'] (order kept, blanks dropped)."""
     return [o.strip() for o in option.split(',') if o.strip()]
@@ -330,6 +379,117 @@ def filter_atoms(fhandle, make_keep, scheme=None):
                 first, second = _partner_getters(ev, links[1])
         elif etype is _cif.LoopEnd:
             kind = None
+        yield ev
+
+
+def reference_problems(fhandle):
+    """Rows of _atom_site_anisotrop and _struct_conn that match no atom.
+
+    Returns a list of messages (empty when the file is consistent):
+    anisotropic rows whose atom id is missing or whose chain / residue
+    number differ from the atom's, and links whose partner atom is missing.
+    """
+    source = as_source(fhandle)
+    conn_loop, conns = None, []
+    for ev in _cif.parse(source.lines(), STRUCT_CONN):
+        if type(ev) is _cif.Row:
+            conns.append(ev)
+        elif type(ev) is _cif.Loop:
+            conn_loop = ev
+
+    problems = []
+    names = ['auth_asym_id', 'auth_seq_id', 'label_asym_id']
+    refs = ['pdbx_auth_asym_id', 'pdbx_auth_seq_id', 'pdbx_label_asym_id']
+    by_id, present, columns = {}, set(), None
+    kind = None
+    for ev in _cif.parse(source.lines(), (ATOM_SITE, ANISOTROP)):
+        etype = type(ev)
+        if etype is _cif.Row and kind == ATOM_SITE:
+            if id_pos is not None:
+                by_id[ev.values[id_pos]] = where(ev.values)
+            if atom_key is not None:
+                present.add(atom_key(ev.values))
+        elif etype is _cif.Row and kind == ANISOTROP:
+            atom_id = ev.get('id')
+            atom = by_id.get(atom_id)
+            if atom is None:
+                problems.append('_atom_site_anisotrop {}: no atom with this id'.format(atom_id))
+                continue
+            for ref, name, value in zip(refs, names, atom):
+                if value is not None and ref in ev and ev[ref] != value:
+                    problems.append('_atom_site_anisotrop {}: {} is {} but the atom has {}'.format(
+                        atom_id, ref, ev[ref], value))
+        elif etype is _cif.Loop:
+            kind = ev.category.lower()
+            if kind == ATOM_SITE:
+                id_pos = ev.index('id') if 'id' in ev else None
+                where = getter(*[ev.index(n) if n in ev else None for n in names])
+                columns = _link_columns(ev, conn_loop) if conn_loop is not None else []
+                atom_key = getter(*[ev.index(a) for a, _ in columns]) if columns else None
+        elif etype is _cif.LoopEnd:
+            kind = None
+
+    if conns and columns:
+        first, second = _partner_getters(conn_loop, columns)
+        for conn in conns:
+            for n, partner in ((1, first), (2, second)):
+                if partner(conn.values) not in present:
+                    problems.append('_struct_conn {}: partner {} matches no atom'.format(
+                        conn.get('id'), n))
+    return problems
+
+
+CIF_EXTENSIONS = ('.cif.gz', '.mmcif.gz', '.cif', '.mmcif', '.gz')
+
+
+def base_name(path, default):
+    """Base for output file names: the input file name without its
+    extension (in the current directory), or `default` for stdin."""
+    if not path or path == '-':
+        return default
+    name = os.path.basename(path)
+    for ext in CIF_EXTENSIONS:
+        if name.lower().endswith(ext):
+            return name[:-len(ext)]
+    return name
+
+
+def atom_columns(path):
+    """Columns of the first _atom_site loop of a file (None if it has none)."""
+    with _cif.open_input(path) as fh:
+        for ev in _cif.parse(fh, ATOM_SITE):
+            if type(ev) is _cif.Loop:
+                return ev.columns
+    return None
+
+
+def rename_block(events, suffix):
+    """Yield events with `suffix` added to the data block names."""
+    for ev in events:
+        if type(ev) is _cif.DataBlock:
+            name = ev.name + suffix
+            ev = _cif.DataBlock(name, 'data_{}\n'.format(name))
+        yield ev
+
+
+def replace_values(fhandle, columns, mapping):
+    """Yield the events of the input with values replaced.
+
+    `columns` maps a category to the columns to look at ({'_atom_site':
+    ['auth_comp_id', ...]}); a value found in `mapping` is replaced by
+    mapping[value]. Columns a file lacks are skipped.
+    """
+    wanted = {c.lower(): cols for c, cols in columns.items()}
+    positions = None
+    for ev in _cif.parse(fhandle, tuple(columns)):
+        etype = type(ev)
+        if etype is _cif.Row:
+            for pos in positions:
+                old = ev.values[pos]
+                if old in mapping:
+                    ev[ev.loop.columns[pos]] = mapping[old]
+        elif etype is _cif.Loop:
+            positions = [ev.index(c) for c in wanted.get(ev.category.lower(), ()) if c in ev]
         yield ev
 
 

@@ -200,6 +200,12 @@ Decided (2026-10-23):
    (protein, ligands, waters), and `label_seq_id` is tied to the deposited sequence, so editing both at once would
    merge separate instances or break the sequence link. Copying one scheme onto the other is left to the planned
    `cif_label2auth` / `cif_auth2label` tools.
+4. **Exception for names (phase 2):** `cif_rplresname` and `cif_uniqname` change *both* name columns (residue
+   names: `auth_comp_id` and `label_comp_id`; atom names: `auth_atom_id` and `label_atom_id`). Names are the same
+   chemical identity in both schemes, and programs differ in which one they read, so changing only one would be
+   invisible in some of them.
+5. **`cif_chainbows` and `cif_swapids` move to phase 3** (TER-based chain splitting has no mmCIF meaning, and
+   swapping ids overlaps with `cif_label2auth` / `cif_auth2label`).
 
 Still open:
 
@@ -372,3 +378,80 @@ does. That is fixed.
 - With the real entries fetched and gemmi + pdb-tools installed, the full suite (93 tests) takes about 6.5 minutes.
   Most of that is the edit-every-value and gemmi checks on the two ribosomes and the pdb-tools cross-check.
   Without the real entries, it takes about 1 second.
+
+## 10. Phase 2 status (2026-10-23): done
+
+**The 21 remaining ports** (42 tools in total; `cif_chainbows` and `cif_swapids` moved to phase 3, decision 5):
+
+| Group | Tools |
+|---|---|
+| Single file | `cif_delelem`, `cif_keepcoord`, `cif_head`, `cif_element`, `cif_rplresname`, `cif_fixinsert` (+ alias `cif_delinsertion`), `cif_reatom`, `cif_uniqname`, `cif_gap`, `cif_sort` |
+| Models / several files | `cif_splitchain`, `cif_splitmodel`, `cif_mkensemble`, `cif_chkensemble`, `cif_merge`, `cif_intersect` |
+| Format | `cif_tidy`, `cif_validate`, `cif_topdb`, `cif_frompdb` |
+
+**Library additions:**
+- **Adding columns.** `Loop.new()` / `Loop.with_columns()` and `Row.moved()`: rows can be put into a loop with
+  more columns. When the columns are only appended, each row keeps its original text and the new values are added
+  at the end of the line.
+- **Several inputs and file output.** `_cli.parse_files()` (several input files) and `_cli.write_file()` (the
+  split tools).
+- **In `_atoms`:**
+  - `guess_element()`: element rules for mmCIF names, which have no PDB column alignment;
+  - `replace_values()`;
+  - `reference_problems()`: anisotropic rows and links that match no atom;
+  - `base_name()`, `atom_columns()`, `rename_block()`.
+
+**Tested:**
+- `tests/test_tools_phase2.py`: 26 unit and command-line tests.
+- **Real entries** (`tests/test_real.py`):
+  - every new single-file tool runs on every entry, with the phase-1 consistency checks;
+  - `cif_element -all` gives back the deposited `type_symbol` for **all 403,053 atoms** of the 10 entries (hemes,
+    ions, glycans, lipids, nucleic acids);
+  - `cif_topdb` → `cif_frompdb` gives back every author identifier on the 9 entries that fit PDB. It also gives
+    back every label identifier on the 5 entries without missing residues;
+  - 1D3Z split into its 10 models and rebuilt with `cif_mkensemble` passes `cif_chkensemble`;
+  - `cif_validate` finds no errors in any entry;
+  - `cif_tidy` keeps every value and is stable (running it twice changes nothing).
+- **Cross-check against pdb-tools** (40 command lines × 14 structures = 630 comparisons): 606 identical, 15
+  documented deviations, 9 not comparable. The 9 are `pdb_sort` refusing multi-model files, and the 9999-residue
+  limit on 1JJ2.
+
+**Deliberate deviations** (each in the tool's `--help`):
+- **`cif_element`**:
+  - It fills only missing elements by default (`-all` re-assigns), because deposited elements are authoritative.
+  - mmCIF names have no column alignment, so it uses its own rules (ion = residue name; SE in MSE; two-letter
+    elements in ligands; else the first letter).
+- **`cif_fixinsert`.** The shift restarts at each chain instance (`label_asym_id`, the TER equivalent) and in each
+  model. It accepts multi-character chains and negative numbers.
+- **`cif_reatom`.** Ids continue across models (mmCIF ids are unique); ANISOU ids follow.
+- **`cif_uniqname`.** It also updates the atom names in `_atom_site_anisotrop` and `_struct_conn`.
+- **`cif_gap`.** `52 → 52A` is not a gap, and alternate-location Cα atoms are not compared.
+- **`cif_sort`.** Multi-model files are sorted model by model, nothing is removed, and anisotropic rows follow
+  their atoms.
+- **Split tools.** Each output is a complete mmCIF file (metadata kept, block renamed). `cif_splitmodel` writes a
+  single-model file too.
+- **`cif_mkensemble` / `cif_merge`.**
+  - The `_atom_site` loop has the union of the columns, and atom ids are renumbered to stay unique.
+  - `cif_merge` merges into one data block and warns on chain clashes; `pdb_merge` concatenates.
+- **`cif_chkensemble`.** The atom id is not part of an atom's identity, otherwise every ensemble would differ.
+- **`cif_intersect`.** It keeps every model, and the first file's metadata.
+- **`cif_head` / `cif_keepcoord`.** They keep a complete mmCIF file.
+- **`cif_topdb`.** It writes the PDB format as specified: right-justified names and elements, MODEL columns
+  11–14, charges as `1-`. It refuses structures that do not fit PDB, with no partial output.
+- **`cif_frompdb`.** It assigns real label identifiers, plus `_entry`, `_cell` and `_symmetry` from CRYST1.
+- **`cif_tidy` / `cif_validate`.** Both are mmCIF-specific: `pdb_tidy` and `pdb_validate` fix and check PDB
+  columns, which mmCIF does not have.
+
+**Known limitations:**
+- **`cif_frompdb`:**
+  - `label_seq_id` counts only the residues present in the file, because SEQRES is not used. It differs from the
+    PDB entry after missing residues (1JJ2, 1KX5, 6VXX).
+  - PDB entries order ligand instances and group glycans (branched entities) by their own conventions (2RH1,
+    6VXX).
+- **`cif_merge`.** It does not reconcile `_entity` / `_struct_asym`, and it drops the anisotropic and link rows of
+  the files after the first.
+- **`cif_topdb`.** It writes no TER, CONECT or header records.
+- **`cif_validate`.** It does not check the file against the PDBx/mmCIF dictionary.
+- **`cif_sort`.** It holds the atom rows in memory, as raw text.
+- **Run time.** With the real entries fetched and gemmi + pdb-tools installed, the full suite (130 tests) takes
+  about 7.5 minutes. Without the real entries, it takes a few seconds.

@@ -174,6 +174,18 @@ class Loop:
     def tags(self):
         return ['{}.{}'.format(self.category, c) for c in self.columns]
 
+    @classmethod
+    def new(cls, category, columns, lineno=None):
+        """A loop created by a tool, with its `loop_` header text."""
+        loop = cls(category, columns, lineno=lineno)
+        loop.text = 'loop_\n' + ''.join(t + '\n' for t in loop.tags)
+        return loop
+
+    def with_columns(self, columns):
+        """A new loop of the same category with other columns. Rows are put
+        into it with Row.moved()."""
+        return Loop.new(self.category, columns, self.lineno)
+
     def __repr__(self):
         return 'Loop({!r}, {} columns)'.format(self.category, len(self.columns))
 
@@ -232,6 +244,26 @@ class Row:
 
     def as_dict(self):
         return dict(zip(self.loop.columns, self.values))
+
+    def moved(self, loop, values=None):
+        """This row in the layout of another loop of the same category.
+
+        Values are matched by column name; `values` ({column: value}) fills
+        or overrides columns, and anything else missing becomes '?'. When
+        `loop` only appends columns to this row's loop, the row keeps its
+        original text and the new values are added at the end of the line.
+        """
+        values = values or {}
+        new_values = [values[c] if c in values else self.get(c, '?') for c in loop.columns]
+        new_values = [v if isinstance(v, str) else str(v) for v in new_values]
+        n = len(self.loop.columns)
+        if (self.text and not self.loop.pairs and len(loop.columns) >= n
+                and [c.lower() for c in loop.columns[:n]] == [c.lower() for c in self.loop.columns]):
+            row = Row(loop, (), self.lead, self.text, self.lineno)
+            row.values = new_values
+            row._orig = self._orig if self._orig not in (None, _NEW) else self.values
+            return row
+        return Row(loop, new_values, self.lead)
 
     @property
     def modified(self):
@@ -874,17 +906,36 @@ def _format_row(row, loop):
         orig = row._orig
         if orig is None:
             return text
-        if len(orig) == len(values):
-            changed = row._changed()
-            if not changed:
-                return text
-            out = _splice_bare(text, values, changed)
+        n = len(orig)
+        if n <= len(values):  # longer: moved into a loop with appended columns
+            head = values[:n] if n < len(values) else values
+            changed = [i for i in range(n) if head[i] is not orig[i] and head[i] != orig[i]]
+            out = text
+            if changed:
+                out = _splice_bare(text, head, changed)
+                if out is None:
+                    spans = _token_spans(text)
+                    out = _splice(text, spans, head, changed) if len(spans) == n else None
+            if out is not None and n < len(values):
+                out = _append_values(out, values[n:])
             if out is not None:
                 return out
-            spans = _token_spans(text)
-            if len(spans) == len(values):
-                return _splice(text, spans, values, changed)
     return _fresh_row(values)
+
+
+def _append_values(text, values):
+    """Add values at the end of a row's text (None if it ends in a comment)."""
+    stripped = text.rstrip(_WHITESPACE)
+    if '#' in stripped:  # maybe a trailing comment: let the caller re-format
+        return None
+    tail = text[len(stripped):]
+    eol = '\r\n' if tail.endswith('\r\n') else '\n'
+    out = [stripped]
+    for value in values:
+        tok = quote(value, eol)
+        out.append(eol + tok if tok[0] == ';' else ' ' + tok)
+    out.append(tail)
+    return ''.join(out)
 
 
 def _format_pairs(row, loop):

@@ -21,6 +21,7 @@ Tests on real PDB entries (tests/real_set.txt).
 Skipped unless the entries have been fetched with `python tests/fetch_real.py`.
 """
 
+import io
 import os
 import time
 import unittest
@@ -30,9 +31,12 @@ from support import (  # noqa: E402
     real_entries, reference_problems, roundtrip, rows, run_tool)
 
 from ciftools import (  # noqa: E402
-    _atoms, cif_b, cif_chain, cif_delchain, cif_delhetatm, cif_delres, cif_delresname, cif_occ,
-    cif_reres, cif_rplchain, cif_selaltloc, cif_selatom, cif_selchain, cif_selelem, cif_selhetatm,
-    cif_selmodel, cif_selres, cif_selresname, cif_shiftres, cif_tofasta, cif_wc)
+    _atoms, cif_b, cif_chain, cif_chkensemble, cif_delchain, cif_delelem, cif_delhetatm,
+    cif_delres, cif_delresname, cif_element, cif_fixinsert, cif_frompdb, cif_gap, cif_head,
+    cif_keepcoord, cif_mkensemble, cif_occ, cif_reatom, cif_reres, cif_rplchain, cif_rplresname,
+    cif_selaltloc, cif_selatom, cif_selchain, cif_selelem, cif_selhetatm, cif_selmodel, cif_selres,
+    cif_selresname, cif_shiftres, cif_sort, cif_splitmodel, cif_tidy, cif_tofasta, cif_topdb,
+    cif_uniqname, cif_validate, cif_wc)
 
 ENTRIES = real_entries()
 SKIP = 'real entries not fetched (run: python tests/fetch_real.py)'
@@ -41,7 +45,13 @@ INF = float('inf')
 
 # Pairs of tools that must split the atoms between them.
 COMPLEMENTS = [('cif_selchain', 'cif_delchain'), ('cif_selresname', 'cif_delresname'),
-               ('cif_selhetatm', 'cif_delhetatm')]
+               ('cif_selhetatm', 'cif_delhetatm'), ('cif_selelem', 'cif_delelem')]
+# Tools that keep every atom
+KEEP_ALL = ('cif_chain', 'cif_rplchain', 'cif_b', 'cif_occ', 'cif_reres', 'cif_shiftres',
+            'cif_keepcoord', 'cif_element -all', 'cif_rplresname', 'cif_fixinsert', 'cif_reatom',
+            'cif_uniqname', 'cif_sort')
+# Entries whose chains have no missing residues: PDB -> mmCIF gives back the label ids
+COMPLETE = ('1d3z', '1ehz', '1ejg', '1ppb', '4hhb')
 
 
 def name(path):
@@ -75,6 +85,15 @@ def calls_for(atoms):
         ('cif_occ', cif_occ, (0.5,)),
         ('cif_reres', cif_reres, (1,)),
         ('cif_shiftres', cif_shiftres, (-1000,)),
+        ('cif_delelem', cif_delelem, (['C'],)),
+        ('cif_keepcoord', cif_keepcoord, ()),
+        ('cif_head', cif_head, (100,)),
+        ('cif_element -all', cif_element, (True,)),
+        ('cif_rplresname', cif_rplresname, (('HOH', 'WAT'),)),
+        ('cif_fixinsert', cif_fixinsert, (set(),)),
+        ('cif_reatom', cif_reatom, (1000,)),
+        ('cif_uniqname', cif_uniqname, ()),
+        ('cif_sort', cif_sort, ('CR',)),
     ]
 
 
@@ -140,7 +159,7 @@ class TestRealTools(unittest.TestCase):
                     outputs[label] = out
                     self.assertEqual(roundtrip(out, _cif.ALL), out)  # output re-reads
                     self.assertLessEqual(reference_problems(out), before)
-                    if module in (cif_chain, cif_rplchain, cif_b, cif_occ, cif_reres, cif_shiftres):
+                    if label in KEEP_ALL:
                         self.assertEqual(len(rows(out)), len(atoms))
                     if gemmi and len(atoms) <= GEMMI_MAX_ATOMS:
                         self.assertEqual(our_tables(out), gemmi_tables(out))
@@ -157,6 +176,64 @@ class TestRealTools(unittest.TestCase):
                 self.assertTrue(fasta.startswith('>' + entry.upper() + '|'))
                 seqres = run_tool(cif_tofasta, text, True, True)
                 self.assertTrue(seqres.startswith('>' + entry.upper() + '|'))
+
+    def test_element_matches_deposited(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                self.assertEqual(run_tool(cif_element, text, True), text)
+
+    def test_gap(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                report = run_tool(cif_gap, text)
+                self.assertTrue(report.endswith(' gap(s) in the structure\n'))
+        self.assertTrue(run_tool(cif_gap, self.texts['6vxx']).startswith('A:'))
+
+    def test_pdb_round_trip(self):
+        auth = ['auth_asym_id', 'auth_seq_id', 'auth_comp_id', 'auth_atom_id', 'pdbx_PDB_ins_code',
+                'label_alt_id', 'pdbx_PDB_model_num', 'type_symbol']
+        label = ['label_asym_id', 'label_entity_id', 'label_seq_id']
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                try:
+                    pdb = run_tool(cif_topdb, text)
+                except _cif.CIFError:
+                    self.assertEqual(entry, '4v6x')  # multi-character chains
+                    continue
+                back = ''.join(cif_frompdb.run(io.StringIO(pdb), entry))
+                before, after = rows(text), rows(back)
+                self.assertEqual(len(after), len(before))
+                for col in auth + (label if entry in COMPLETE else []):
+                    self.assertEqual([r[col] for r in after], [r[col] for r in before], col)
+
+    def test_split_and_rebuild_ensemble(self):
+        import shutil
+        import tempfile
+        tmp = tempfile.mkdtemp()
+        try:
+            text = self.texts['1d3z']
+            paths = cif_splitmodel.run(io.StringIO(text), '1d3z', outdir=tmp)
+            self.assertEqual(len(paths), 10)
+            out = io.StringIO()
+            _cif.write(cif_mkensemble.run(paths), out)
+            self.assertEqual(len(rows(out.getvalue())), len(rows(text)))
+            status = cif_chkensemble.run(io.StringIO(out.getvalue()))[2]
+            self.assertEqual(status, 0)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_validate(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                lines, errors = cif_validate.run(io.StringIO(text, newline=''))
+                self.assertEqual(errors, 0, ''.join(lines))
+
+    def test_tidy(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                out = run_tool(cif_tidy, text)
+                self.assertEqual(our_tables(out), our_tables(text))  # same data
+                self.assertEqual(run_tool(cif_tidy, out), out)       # already tidy
 
 
 if __name__ == '__main__':

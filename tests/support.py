@@ -129,41 +129,10 @@ def run_tool(module, text, *args, scheme=None):
 
 
 def reference_problems(text):
-    """Rows of _atom_site_anisotrop and _struct_conn that do not match an atom.
-
-    Returns a set of strings describing them (empty when consistent).
-    """
+    """Set of messages about rows of _atom_site_anisotrop and _struct_conn
+    that match no atom (empty when consistent)."""
     from ciftools import _atoms
-    events = list(_cif.parse(io.StringIO(text, newline=''),
-                             (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)))
-    atoms = [ev for ev in events if isinstance(ev, _cif.Row) and ev.loop.category == '_atom_site']
-    problems = set()
-    by_id = {a['id']: a for a in atoms if 'id' in a}
-    for ev in events:
-        if not isinstance(ev, _cif.Row):
-            continue
-        if ev.loop.category == '_atom_site_anisotrop':
-            atom = by_id.get(ev.get('id'))
-            if atom is None:
-                problems.add('anisotrop {} has no atom'.format(ev.get('id')))
-                continue
-            for ref, col in (('pdbx_auth_asym_id', 'auth_asym_id'), ('pdbx_auth_seq_id', 'auth_seq_id'),
-                             ('pdbx_label_asym_id', 'label_asym_id')):
-                if ref in ev and col in atom and ev[ref] != atom[col]:
-                    problems.add('anisotrop {} {}={} but atom has {}'.format(
-                        ev['id'], ref, ev[ref], atom[col]))
-    conns = [ev for ev in events if isinstance(ev, _cif.Row) and ev.loop.category == '_struct_conn']
-    if conns and atoms:
-        columns = _atoms._link_columns(atoms[0].loop, conns[0].loop)
-        if columns:
-            atom_key = _atoms.getter(*[atoms[0].loop.index(a) for a, _ in columns])
-            present = {atom_key(a.values) for a in atoms}
-            first, second = _atoms._partner_getters(conns[0].loop, columns)
-            for conn in conns:
-                for n, partner in ((1, first), (2, second)):
-                    if partner(conn.values) not in present:
-                        problems.add('struct_conn {} partner {} missing'.format(conn.get('id'), n))
-    return problems
+    return set(_atoms.reference_problems(io.StringIO(text, newline='')))
 
 
 def our_tables(text):
