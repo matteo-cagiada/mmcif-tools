@@ -50,6 +50,7 @@ writer, which must reproduce it exactly:
     python -m ciftools._cif [--all] [file.cif]
 """
 
+import errno
 import gzip
 import io
 import os
@@ -1104,6 +1105,23 @@ def stdout():
     return _reconfigure(sys.stdout)
 
 
+def pipe_closed(err):
+    """True if an OSError means the reader of stdout went away (`| head`).
+
+    That is BrokenPipeError on POSIX; on Windows, writing to a closed pipe
+    raises OSError with errno EINVAL instead.
+    """
+    return isinstance(err, BrokenPipeError) or (
+        os.name == 'nt' and getattr(err, 'errno', None) == errno.EINVAL)
+
+
+def silence_stdout():
+    """Point stdout at the null device, so that Python's final flush at exit
+    does not fail again on a closed pipe."""
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, sys.stdout.fileno())
+
+
 def _main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(
@@ -1124,8 +1142,10 @@ def _main(argv=None):
     except CIFError as err:
         sys.stderr.write('ERROR: {}\n'.format(err))
         sys.exit(1)
-    except BrokenPipeError:
-        pass
+    except OSError as err:
+        if not pipe_closed(err):
+            raise
+        silence_stdout()
     finally:
         fhandle.close()
 

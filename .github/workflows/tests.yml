@@ -11,8 +11,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
+          # Python 3.9 (end of life, but macOS's own python3) has no build
+          # for ubuntu-latest (26.04) any more; 24.04 still has 3.9.25.
+          - os: ubuntu-24.04
+            python-version: "3.9"
           - os: macos-latest
             python-version: "3.13"
           - os: windows-latest

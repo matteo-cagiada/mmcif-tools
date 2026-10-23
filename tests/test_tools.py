@@ -30,6 +30,7 @@ import urllib.error
 from support import DATA, ROOT, _cif, gemmi, gemmi_tables, our_tables, read, rows  # noqa: E402
 
 from ciftools import (  # noqa: E402
+    _atoms,
     cif_b, cif_chain, cif_delchain, cif_delhetatm, cif_delres, cif_delresname, cif_fetch,
     cif_occ, cif_reres, cif_rplchain, cif_selaltloc, cif_selatom, cif_selchain, cif_selelem,
     cif_selhetatm, cif_selmodel, cif_selres, cif_selresname, cif_shiftres, cif_tofasta, cif_wc)
@@ -276,6 +277,59 @@ class TestReports(unittest.TestCase):
         text += ''.join('ATOM {0} A {0} ALA\n'.format(i) for i in range(1, 131))
         self.assertEqual(tool(cif_tofasta, text, False, False),
                          '>long|A\n' + 'A' * 60 + '\n' + 'A' * 60 + '\n' + 'A' * 10 + '\n')
+
+
+class SeekablePipe(io.TextIOWrapper):
+    """A pipe that claims to be seekable, as pipes do on Windows."""
+
+    def seekable(self):
+        return True
+
+
+def pipe_with(text):
+    read_fd, write_fd = os.pipe()
+    with os.fdopen(write_fd, 'w', newline='') as writer:  # small: fits the pipe buffer
+        writer.write(text)
+    return SeekablePipe(os.fdopen(read_fd, 'rb'), encoding='utf-8', newline='')
+
+
+class TestSource(unittest.TestCase):
+    """Tools that read their input twice must copy pipes, even 'seekable' ones."""
+
+    def test_windows_like_pipe_is_copied(self):
+        pipe = pipe_with(WWPDB)
+        try:
+            self.assertFalse(_atoms.rereadable(pipe))
+            source = _atoms.Source(pipe)
+            self.assertEqual(''.join(source.lines()), WWPDB)
+            self.assertEqual(''.join(source.lines()), WWPDB)  # and again
+        finally:
+            pipe.close()
+
+    def test_tool_reading_a_windows_like_pipe(self):
+        pipe = pipe_with(WWPDB)
+        try:
+            out = io.StringIO()
+            _cif.write(cif_selchain.run(pipe, ['C'], scheme='label'), out)
+            self.assertEqual(ids(out.getvalue()), ['18', '19'])
+        finally:
+            pipe.close()
+
+    def test_files_are_read_in_place(self):
+        self.assertTrue(_atoms.rereadable(io.StringIO(WWPDB)))
+        with _cif.open_input(os.path.join(DATA, 'wwpdb_like.cif')) as fh:
+            self.assertTrue(_atoms.rereadable(fh))
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, 'x.cif.gz')
+            with gzip.open(path, 'wt', newline='') as fh:
+                fh.write(WWPDB)
+            with _cif.open_input(path) as fh:
+                self.assertTrue(_atoms.rereadable(fh))
+                source = _atoms.Source(fh)
+                self.assertEqual(''.join(source.lines()), ''.join(source.lines()))
+        finally:
+            shutil.rmtree(tmp)
 
 
 class FakeResponse(io.BytesIO):

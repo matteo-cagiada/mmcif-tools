@@ -34,7 +34,10 @@ through a Source, which can be read more than once (stdin is copied to a
 temporary file, kept in memory while small).
 """
 
+import io
 import operator
+import os
+import stat
 import tempfile
 
 from ciftools import _cif
@@ -164,19 +167,37 @@ def residue_numbers(source, scheme=None):
     return numbers
 
 
+def rereadable(fhandle):
+    """True if fhandle can be rewound and read again.
+
+    That is a regular file (plain or gzip) or an in-memory stream. seekable()
+    alone is not enough: on Windows a pipe reports itself as seekable, but
+    seeking back does not bring its data back.
+    """
+    try:
+        if not fhandle.seekable():
+            return False
+    except (AttributeError, ValueError):
+        return False
+    try:
+        fd = fhandle.fileno()
+    except (AttributeError, OSError, io.UnsupportedOperation):
+        return True  # e.g. io.StringIO
+    try:
+        return stat.S_ISREG(os.fstat(fd).st_mode)
+    except OSError:
+        return False
+
+
 class Source:
     """The input of a tool, readable more than once.
 
-    A seekable file handle is re-read in place; anything else (stdin, a
-    pipe) is first copied to a temporary file.
+    A regular file is re-read in place; anything else (stdin, a pipe) is
+    first copied to a temporary file.
     """
 
     def __init__(self, fhandle):
-        try:
-            seekable = fhandle.seekable()
-        except (AttributeError, ValueError):
-            seekable = False
-        if seekable:
+        if rereadable(fhandle):
             self.fh = fhandle
             self.start = fhandle.tell()
         else:

@@ -104,10 +104,10 @@ def output(events, fhandle=None):
     except _cif.CIFError as err:
         sys.stderr.write('ERROR!! {}\n'.format(err))
         sys.exit(1)
-    except BrokenPipeError:
-        # Python flushes stdout again at exit; point it somewhere harmless.
-        devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
+    except OSError as err:
+        if not _cif.pipe_closed(err):
+            raise
+        _cif.silence_stdout()
     finally:
         if fhandle is not None:
             fhandle.close()
@@ -131,9 +131,10 @@ def output_text(lines, fhandle=None):
     except _cif.CIFError as err:
         sys.stderr.write('ERROR!! {}\n'.format(err))
         sys.exit(1)
-    except BrokenPipeError:
-        devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
+    except OSError as err:
+        if not _cif.pipe_closed(err):
+            raise
+        _cif.silence_stdout()
     finally:
         if fhandle is not None:
             fhandle.close()
