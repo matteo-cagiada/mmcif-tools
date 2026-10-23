@@ -1,0 +1,23 @@
+data_ION
+_entry.id ION
+
+_atom_site.group_PDB         HETATM
+_atom_site.id                1
+_atom_site.type_symbol       ZN
+_atom_site.label_atom_id     ZN
+_atom_site.label_alt_id      .
+_atom_site.label_comp_id     ZN
+_atom_site.label_asym_id     A
+_atom_site.label_entity_id   1
+_atom_site.label_seq_id      .
+_atom_site.pdbx_PDB_ins_code ?
+_atom_site.Cartn_x           1.000
+_atom_site.Cartn_y           2.000
+_atom_site.Cartn_z           3.000
+_atom_site.occupancy         1.00
+_atom_site.B_iso_or_equiv    20.00
+_atom_site.auth_seq_id       501
+_atom_site.auth_comp_id      ZN
+_atom_site.auth_asym_id      A
+_atom_site.auth_atom_id      ZN
+_atom_site.pdbx_PDB_model_num 1

@@ -1,0 +1,41 @@
+data_TXT
+_struct.entry_id TXT
+_struct.title
+;Crystal structure of a test protein
+loop_ and data_ inside a text field are not keywords
+_atom_site.id 99 is not a tag either
+;
+#
+loop_
+_citation.id
+_citation.title
+primary
+;A title that spans
+two lines
+;
+2 'Second, with a quote: it''s here'
+#
+loop_
+_atom_site.group_PDB
+# a comment inside the header
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.details
+ATOM	1	N	N	ALA	A	1	.
+# a comment between rows
+
+ATOM 2 C CA ALA A 1 'alpha carbon'
+ATOM 3 C C ALA A 1
+    'row split over two lines'
+ATOM 4 O O ALA A 1 ? ATOM 5 N N GLY A 2 ?
+ATOM 6 C CA GLY A 2
+;a text field
+inside the atom_site loop
+;
+ATOM 7 C C GLY A 2 "double 'quoted'"   # trailing comment
+  ATOM 8 O O GLY A 2 a#b
+#

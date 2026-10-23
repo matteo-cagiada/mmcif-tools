@@ -1,0 +1,11 @@
+cif-tools
+Copyright 2026 the cif-tools authors
+
+cif-tools is a port of pdb-tools (https://github.com/haddocking/pdb-tools)
+to the mmCIF format. pdb-tools is Copyright the pdb-tools authors
+(Rodrigues JPGLM, Teixeira JMC, Trellet M, Bonvin AMJJ) and is distributed
+under the Apache License, Version 2.0.
+
+  Rodrigues JPGLM, Teixeira JMC, Trellet M and Bonvin AMJJ.
+  pdb-tools: a swiss army knife for molecular structures.
+  F1000Research 2018, 7:1961 (https://doi.org/10.12688/f1000research.17456.1)

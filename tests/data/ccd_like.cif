@@ -1,0 +1,44 @@
+data_SO4
+#
+_chem_comp.id                                    SO4
+_chem_comp.name                                  "SULFATE ION"
+_chem_comp.type                                  NON-POLYMER
+_chem_comp.pdbx_type                             HETAI
+_chem_comp.formula                               "O4 S"
+_chem_comp.pdbx_synonyms                         ?
+_chem_comp.formula_weight                        96.063
+_chem_comp.pdbx_processing_site                  EBI
+#
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.alt_atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+_chem_comp_atom.model_Cartn_x
+_chem_comp_atom.model_Cartn_y
+_chem_comp_atom.model_Cartn_z
+_chem_comp_atom.pdbx_ordinal
+SO4 S  S  S 0  0.200 -0.065  0.665 1
+SO4 O1 O1 O 0  0.149 -1.298  1.373 2
+SO4 O2 O2 O -1 1.538  0.562  1.029 3
+SO4 "O3'" "O3*" O -1 0.054  0.205 -0.762 4
+#
+loop_
+_pdbx_chem_comp_descriptor.comp_id
+_pdbx_chem_comp_descriptor.type
+_pdbx_chem_comp_descriptor.program
+_pdbx_chem_comp_descriptor.program_version
+_pdbx_chem_comp_descriptor.descriptor
+SO4 SMILES           ACDLabs              10.04 "[O-]S([O-])(=O)=O"
+SO4 SMILES_CANONICAL CACTVS               3.341 "[O-][S]([O-])(=O)=O"
+SO4 InChI            InChI                1.03  InChI=1S/H2O4S/c1-5(2,3)4/h(H2,1,2,3,4)/p-2
+SO4 InChIKey         InChI                1.03  QAOWNCQODCNURD-UHFFFAOYSA-L
+#
+_pdbx_chem_comp_audit.comp_id      SO4
+_pdbx_chem_comp_audit.action_type  "Create component"
+_pdbx_chem_comp_audit.date         1999-07-08
+_pdbx_chem_comp_audit.details
+;Long free-text
+details, with 'quotes' and "double quotes"
+;

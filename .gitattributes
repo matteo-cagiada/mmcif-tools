@@ -1,0 +1,2 @@
+# Fixtures must keep their exact bytes (line endings, trailing spaces).
+tests/data/** -text
