@@ -8,7 +8,8 @@ has used since 2014.
 cif_fetch 1brs | cif_selchain -A,D | cif_delhetatm | cif_reres -1 > clean.cif
 ```
 
-**Status: phases 1 and 2 done: 42 tools,** covering every pdb-tools tool that has an mmCIF meaning. The
+**Status: phases 1–3 done: 48 tools.** They cover every pdb-tools tool that has an mmCIF meaning, plus tools that
+only make sense in mmCIF: categories, data blocks, and copying one identifier scheme onto the other. The
 roadmap, the pdb-tools → cif-tools mapping and the design decisions are in [PLAN.md](PLAN.md).
 
 ## Tools
@@ -39,6 +40,11 @@ roadmap, the pdb-tools → cif-tools mapping and the design decisions are in [PL
 | Models / files | `cif_splitchain` / `cif_splitmodel` | Write one file per chain / model |
 | | `cif_mkensemble` / `cif_chkensemble` | Build a multi-model file / check its models match |
 | | `cif_merge` | Merge the atoms of several files into one |
+| Identifiers | `cif_label2auth` | Copy label chains and residue numbers onto the author ones (`-chain`, `-res`) |
+| | `cif_auth2label` | Copy author chains onto the label chains of polymers |
+| Categories / blocks | `cif_cat` | Print one category as a table (TSV): `-_atom_site.id,Cartn_x` |
+| | `cif_delcat` / `cif_keepcat` | Remove / keep whole categories (`-_struct_conf`, `'-_pdbx_validate*'`) |
+| | `cif_blocks` | List the data blocks, or extract some (`-ATP`) |
 | Inspect / format | `cif_wc` | Summary: models, chains, residues, atoms, … |
 | | `cif_tofasta` | Sequence in FASTA format (`-multi`, `-seqres`) |
 | | `cif_gap` | Report chain breaks |
@@ -60,10 +66,13 @@ files may be gzip-compressed.
   values are rewritten, and the other columns keep their alignment.
 - **Related tables stay in step.** Removing atoms also removes their rows in `_atom_site_anisotrop` and
   `_struct_conn`. Renaming chains or renumbering residues updates the same two tables. Other categories that
-  mention chains or residues are left untouched: `_struct_conf`, `_pdbx_poly_seq_scheme`, ...
-- **No segment IDs.** mmCIF has no segment identifier, so the segment tools (`pdb_seg`, `pdb_selseg`, ...) have no
-  equivalent.
-
+  mention chains or residues are left untouched: `_struct_conf`, `_pdbx_poly_seq_scheme`, ... (a tool to bring
+  them back in step, `cif_prune`, is planned after the first release).
+- **No segment IDs, no TER records.** mmCIF has no segment identifier, so the segment tools (`pdb_seg`,
+  `pdb_selseg`, `pdb_splitseg`) have no equivalent: `label_asym_id` names each molecule (`cif_selchain --label`,
+  `cif_splitchain --label`). Chains are explicit, so there is no `pdb_chainbows`: `cif_frompdb` uses the TER records
+  of a PDB file to separate molecules and names blank chains, and `cif_label2auth -chain` gives each molecule its
+  own author chain (also the job of `pdb_chainxseg` / `pdb_segxchain`).
 - **Names in both schemes.** Residue and atom names are the same chemical identity in both schemes, so
   `cif_rplresname` and `cif_uniqname` change both name columns.
 
@@ -76,8 +85,9 @@ PLAN.md §9 and §10.
 python -m pip install -e .
 ```
 
-There are no runtime dependencies. `pip install -e ".[test]"` adds gemmi and pdb-tools, which are used only in the
-tests, as independent cross-checks.
+There are no runtime dependencies. During development, `pip install -e ".[test]"` adds gemmi and pdb-tools, which
+are used only in the tests, as independent cross-checks. The gemmi checks will be removed from the tests before
+the first release (PLAN.md §7, decision 12).
 
 ## Tests
 

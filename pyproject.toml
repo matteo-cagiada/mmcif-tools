@@ -21,9 +21,13 @@ classifiers = [
 test = ["gemmi", "pdb-tools"]
 
 [project.scripts]
+cif_auth2label = "ciftools.cif_auth2label:main"
 cif_b = "ciftools.cif_b:main"
+cif_blocks = "ciftools.cif_blocks:main"
+cif_cat = "ciftools.cif_cat:main"
 cif_chain = "ciftools.cif_chain:main"
 cif_chkensemble = "ciftools.cif_chkensemble:main"
+cif_delcat = "ciftools.cif_delcat:main"
 cif_delchain = "ciftools.cif_delchain:main"
 cif_delelem = "ciftools.cif_delelem:main"
 cif_delhetatm = "ciftools.cif_delhetatm:main"
@@ -37,7 +41,9 @@ cif_frompdb = "ciftools.cif_frompdb:main"
 cif_gap = "ciftools.cif_gap:main"
 cif_head = "ciftools.cif_head:main"
 cif_intersect = "ciftools.cif_intersect:main"
+cif_keepcat = "ciftools.cif_keepcat:main"
 cif_keepcoord = "ciftools.cif_keepcoord:main"
+cif_label2auth = "ciftools.cif_label2auth:main"
 cif_merge = "ciftools.cif_merge:main"
 cif_mkensemble = "ciftools.cif_mkensemble:main"
 cif_occ = "ciftools.cif_occ:main"

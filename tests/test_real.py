@@ -31,10 +31,11 @@ from support import (  # noqa: E402
     real_entries, reference_problems, roundtrip, rows, run_tool)
 
 from ciftools import (  # noqa: E402
-    _atoms, cif_b, cif_chain, cif_chkensemble, cif_delchain, cif_delelem, cif_delhetatm,
-    cif_delres, cif_delresname, cif_element, cif_fixinsert, cif_frompdb, cif_gap, cif_head,
-    cif_keepcoord, cif_mkensemble, cif_occ, cif_reatom, cif_reres, cif_rplchain, cif_rplresname,
-    cif_selaltloc, cif_selatom, cif_selchain, cif_selelem, cif_selhetatm, cif_selmodel, cif_selres,
+    _atoms, cif_auth2label, cif_b, cif_blocks, cif_cat, cif_chain, cif_chkensemble, cif_delcat,
+    cif_delchain, cif_delelem, cif_delhetatm, cif_delres, cif_delresname, cif_element,
+    cif_fixinsert, cif_frompdb, cif_gap, cif_head, cif_keepcat, cif_keepcoord, cif_label2auth,
+    cif_mkensemble, cif_occ, cif_reatom, cif_reres, cif_rplchain, cif_rplresname, cif_selaltloc,
+    cif_selatom, cif_selchain, cif_selelem, cif_selhetatm, cif_selmodel, cif_selres,
     cif_selresname, cif_shiftres, cif_sort, cif_splitmodel, cif_tidy, cif_tofasta, cif_topdb,
     cif_uniqname, cif_validate, cif_wc)
 
@@ -49,7 +50,7 @@ COMPLEMENTS = [('cif_selchain', 'cif_delchain'), ('cif_selresname', 'cif_delresn
 # Tools that keep every atom
 KEEP_ALL = ('cif_chain', 'cif_rplchain', 'cif_b', 'cif_occ', 'cif_reres', 'cif_shiftres',
             'cif_keepcoord', 'cif_element -all', 'cif_rplresname', 'cif_fixinsert', 'cif_reatom',
-            'cif_uniqname', 'cif_sort')
+            'cif_uniqname', 'cif_sort', 'cif_label2auth', 'cif_label2auth -chain', 'cif_delcat')
 # Entries whose chains have no missing residues: PDB -> mmCIF gives back the label ids
 COMPLETE = ('1d3z', '1ehz', '1ejg', '1ppb', '4hhb')
 
@@ -94,6 +95,9 @@ def calls_for(atoms):
         ('cif_reatom', cif_reatom, (1000,)),
         ('cif_uniqname', cif_uniqname, ()),
         ('cif_sort', cif_sort, ('CR',)),
+        ('cif_label2auth', cif_label2auth, (True, True)),
+        ('cif_label2auth -chain', cif_label2auth, (True, False)),
+        ('cif_delcat', cif_delcat, (['_pdbx_validate*', '_struct_conf'],)),
     ]
 
 
@@ -221,6 +225,51 @@ class TestRealTools(unittest.TestCase):
             self.assertEqual(status, 0)
         finally:
             shutil.rmtree(tmp)
+
+    def test_label_and_author_copies(self):
+        for entry, text in self.texts.items():
+            before, atoms = reference_problems(text), rows(text)
+            with self.subTest(entry=entry, tool='cif_label2auth'):
+                after = rows(run_tool(cif_label2auth, text, True, True))
+                self.assertEqual([a['auth_asym_id'] for a in after], [a['label_asym_id'] for a in atoms])
+                self.assertEqual([a['auth_seq_id'] for a in after],
+                                 [a['label_seq_id'] if a['label_seq_id'] != '.' else a['auth_seq_id']
+                                  for a in atoms])
+            with self.subTest(entry=entry, tool='cif_label2auth -res'):
+                try:
+                    out = run_tool(cif_label2auth, text, False, True)
+                except _cif.CIFError as err:
+                    self.assertIn('would both become', str(err))
+                else:
+                    self.assertEqual(len(rows(out)), len(atoms))
+                    self.assertLessEqual(reference_problems(out), before)
+            with self.subTest(entry=entry, tool='cif_auth2label'):
+                try:
+                    out = run_tool(cif_auth2label, text)
+                except _cif.CIFError as err:
+                    self.assertIn('ligand or water', str(err))
+                    continue
+                after = rows(out)
+                self.assertLessEqual(reference_problems(out), before)
+                # one new label chain per old one: no molecules merged
+                pairs = {(a['label_asym_id'], b['label_asym_id']) for a, b in zip(atoms, after)}
+                self.assertEqual(len({p[0] for p in pairs}), len(pairs))
+                self.assertEqual(len({p[1] for p in pairs}), len(pairs))
+                polymer = [b for a, b in zip(atoms, after) if a['label_seq_id'] != '.']
+                self.assertEqual([b['label_asym_id'] for b in polymer], [b['auth_asym_id'] for b in polymer])
+
+    def test_category_tools(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                table = run_tool(cif_cat, text, '_atom_site').splitlines()
+                self.assertEqual(len(table), len(rows(text)) + 1)
+                self.assertEqual(run_tool(cif_blocks, text), entry.upper() + '\n')
+                self.assertEqual(run_tool(cif_keepcat, text, ['_atom_site', '_struct_conn']),
+                                 run_tool(cif_keepcoord, text))
+                out = run_tool(cif_delcat, text, ['_pdbx_validate*'])
+                self.assertFalse([line for line in out.splitlines()
+                                  if line.lower().startswith('_pdbx_validate')])
+                self.assertEqual(run_tool(cif_delcat, out, ['_pdbx_validate*']), out)
 
     def test_validate(self):
         for entry, text in self.texts.items():

@@ -65,13 +65,13 @@ complex to duplicate 48 times.
    by atom id, `_struct_conn` by partner atoms). Optionally, prune `_struct_asym`/`_entity`/`_pdbx_poly_seq_scheme`.
    This is opt-in (`--prune`) in v1, so that by default we never silently rewrite metadata.
 
-Optional speed path: if `gemmi` is installed, a few heavy tools (`cif_tidy`, `cif_validate`) may use it. The
-stdlib path must always work.
+~~Optional speed path: if `gemmi` is installed, a few heavy tools (`cif_tidy`, `cif_validate`) may use it.~~
+Dropped in phase 3 (§7, decision 10): every tool is stdlib only.
 
 ### 3.2 Packaging
 
 - `pyproject.toml`, package `ciftools`, console entry points `cif_*` (pdb-tools uses the same mechanism).
-- Python ≥ 3.9, no runtime deps. Optional extra: `cif-tools[gemmi]`.
+- Python ≥ 3.9, no runtime deps and no gemmi extra: gemmi is not part of the release (§7, decision 12).
 - Licence: pdb-tools is Apache-2.0, so we can derive from it if we keep the licence and NOTICE/attribution to the
   Bonvin lab authors. (Check if we want to coordinate with them upstream, see §7.)
 
@@ -108,9 +108,9 @@ stdlib path must always work.
 | pdb_uniqname | ✅ cif_uniqname | HETATM atom names |
 | pdb_delinsertion | ✅ cif_delinsertion | `pdbx_PDB_ins_code` → `?`, then shift numbering |
 | pdb_fixinsert | ✅ cif_fixinsert | Same |
-| pdb_seg | ❌ | No segment id in mmCIF. Suggest using `cif_chain --label` |
-| pdb_chainxseg / pdb_segxchain | 🔁 cif_swapids | Replaces both: swap/copy `auth_asym_id` ↔ `label_asym_id` (the closest CIF analogue) |
-| pdb_chainbows | 🔁 cif_chainbows | No TER records. Instead, split on chain breaks (C–N distance), the way `cif_gap` does |
+| pdb_seg | ❌ | No segment id in mmCIF; `label_asym_id` names each molecule |
+| pdb_chainxseg / pdb_segxchain | ❌ (was `cif_swapids`) | Replaced by 🆕 `cif_label2auth` / `cif_auth2label`, which copy one scheme onto the other (§7, decision 7) |
+| pdb_chainbows | ❌ | No TER records in mmCIF. `cif_frompdb` splits molecules at TER and names blank chains; `cif_label2auth -chain` gives each molecule its own chain (§7, decision 6) |
 
 ### Selecting / deleting
 | pdb-tools | cif-tools | Notes |
@@ -154,14 +154,16 @@ stdlib path must always work.
 | pdb_tocif | ✅ cif_frompdb | Rewrite pdb-tools' "rudimentary" converter to output both auth and label ids |
 | pdb_fromcif | ✅ cif_topdb | Fails with a clear message when the structure doesn't fit PDB (>99,999 atoms, multi-char chains) unless `--force` |
 
-### New CIF-specific tools (🆕, phase 3, optional)
-- `cif_cat <category>`: print one category as TSV (the CIF version of `grep ATOM`).
+### New CIF-specific tools (🆕, phase 3)
+- `cif_cat -<category>`: print one category as TSV (the CIF version of `grep ATOM`).
 - `cif_delcat` / `cif_keepcat`: drop/keep whole categories.
 - `cif_blocks`: list or select `data_` blocks.
 - `cif_label2auth` / `cif_auth2label`: copy one identifier scheme onto the other.
-- `cif_prune`: re-synchronise `_entity`/`_struct_asym`/`_pdbx_poly_seq_scheme` after heavy editing.
+- `cif_prune`: re-synchronise `_entity`/`_struct_asym`/`_pdbx_poly_seq_scheme` after heavy editing. **Postponed
+  until after the first release** (§7, decision 9).
 
-**Totals:** 48 originals → ~40 ported (incl. 4 merged/renamed), 4 dropped (segment-based), plus ~6 new.
+**Totals:** 48 originals → 42 ported (41 tools plus the `cif_delinsertion` alias), 6 dropped (the three segment
+tools, chainbows and the two chain/segment swaps), plus 6 new: 48 tools.
 
 ## 5. Phases
 
@@ -170,8 +172,9 @@ stdlib path must always work.
 | **0. Foundations** | Repo, `pyproject`, CI, fixture set, `_cif.py` tokenizer/reader/writer, round-trip test | `cat x.cif \| python -m ciftools._cif` reproduces input byte-for-byte on all fixtures |
 | **1. Core 20** | The tools we actually use daily: selchain, delchain, selres, delres, selresname, delresname, selatom, selelem, selhetatm, delhetatm, selaltloc, selmodel, chain, rplchain, b, occ, reres, shiftres, wc, tofasta, fetch | Each passes unit tests + cross-check vs pdb-tools |
 | **2. The rest** | Remaining ports: split/merge/ensemble, sort, tidy, validate, gap, element, reatom, uniqname, insertion tools, intersect, keepcoord, head, conversions | All ported tools in §4 implemented |
-| **3. CIF extras** | 🆕 tools, `--prune`, optional gemmi path | |
-| **4. Release** | Docs site (same style as the pdb-tools page: one entry per tool with `-h` text), PyPI, conda-forge, migration table pdb_X → cif_X | `pip install cif-tools` works |
+| **3. CIF extras** | 🆕 tools (without `cif_prune`), the `cif_frompdb` TER fix, leftovers from phases 1–2 | Done (§11) |
+| **4. Release** | Docs site (same style as the pdb-tools page: one entry per tool with `--help` text), PyPI, conda-forge, migration table pdb_X → cif_X; naming, upstream and pipeline questions (§7); remove gemmi from the tests, CI and the `[test]` extra, and move the gemmi check to a separate script (§7, decision 12) | `pip install cif-tools` works, with no gemmi anywhere in the package or its tests |
+| **5. After the first release** | `cif_prune` (§7, decision 9) | |
 
 Before phase 1, one useful step: **grep our own lab scripts/pipelines for `pdb_` calls** to rank the tools by how
 much we use them, and adjust the "Core 20" list.
@@ -195,7 +198,8 @@ much we use them, and adjust the "Core 20" list.
 Decided (2026-10-23):
 
 1. **Default identifier scheme: `auth_*`.** Switch per call with `--label`, or globally with `CIFTOOLS_SCHEME=label`.
-2. **Core is strictly stdlib.** gemmi is used only by the tests (cross-checks) and, later, as an optional extra.
+2. **Core is strictly stdlib.** gemmi is used only by the tests (cross-checks); revised by decision 12: not as
+   an optional extra, and not in the released test suite.
 3. **Edits change one identifier scheme, never both.** One author chain usually spans several label chains
    (protein, ligands, waters), and `label_seq_id` is tied to the deposited sequence, so editing both at once would
    merge separate instances or break the sequence link. Copying one scheme onto the other is left to the planned
@@ -207,12 +211,40 @@ Decided (2026-10-23):
 5. **`cif_chainbows` and `cif_swapids` move to phase 3** (TER-based chain splitting has no mmCIF meaning, and
    swapping ids overlaps with `cif_label2auth` / `cif_auth2label`).
 
-Still open:
+Decided for phase 3 (2026-10-24):
 
-3. **Naming**: `cif_*` (proposed) or `mmcif_*`?
-4. **Upstream**: build an independent package, or propose it to the Bonvin lab as a sister project / `pdb-tools`
-   v3 subpackage?
-5. **Which of our existing pipelines** need to migrate first (to define the phase-1 list)?
+6. **No `cif_chainbows`.** TER records only separate molecules in PDB files, and mmCIF names every molecule. So
+   `cif_frompdb` now starts a new molecule at each TER record (also in blank or repeated chains) and gives atoms
+   of a blank chain their label chain as author chain. For mmCIF files, `cif_label2auth -chain` gives each
+   molecule its own author chain.
+7. **No `cif_swapids`.** A swap would put author values into the label columns. `cif_auth2label` is kept, for
+   chains only: it copies the author chain onto the label chain of each *polymer*, leaves ligands and waters on
+   their own label chains, and refuses to merge molecules. Its `--help` says why residue numbers are not copied.
+8. **`cif_label2auth` copies everything by default** (chains and residue numbers); `-chain` or `-res` copies only
+   one. It refuses when two residues would get the same identifiers.
+9. **`cif_prune` (and `--prune`) after the first release.** Removing the rows of deleted molecules is well
+   defined; keeping renames in step is not settled yet. A note for later: the edit tools change one scheme only
+   (`cif_rplchain` changes `auth_asym_id` and leaves `label_asym_id`), so label ids could serve as the key for
+   re-deriving author ids in the other tables; only residue and atom *names* are changed in both schemes
+   (decision 4), and names are not keys.
+10. **No gemmi path.** The core stays stdlib only. Checking a file against the PDBx/mmCIF dictionary is left to
+    external validators (`cif_validate --help` mentions `gemmi validate`).
+11. **Leftovers fixed in phase 3:** TER records in `cif_topdb`, quoted `'.'` / `'?'` read as text, and
+    `cif_selaltloc` updating `_struct_conn`.
+
+Decided 2026-10-24:
+
+12. **gemmi is not in the final version.** The gemmi cross-checks in the test suite are a development check
+    only. Before the first release (phase 4) they are removed from the tests, the CI workflow and the `[test]`
+    extra. A gemmi validity check can live on as a separate script (e.g. `tools/check_with_gemmi.py`), run by
+    hand and not part of the test suite or CI.
+
+Still open, for phase 4:
+
+- **Naming**: `cif_*` (proposed) or `mmcif_*`?
+- **Upstream**: build an independent package, or propose it to the Bonvin lab as a sister project / `pdb-tools`
+  v3 subpackage?
+- **Which of our existing pipelines** need to migrate first?
 
 ## 8. Phase 0 status (2026-10-23): done
 
@@ -455,3 +487,67 @@ does. That is fixed.
 - **`cif_sort`.** It holds the atom rows in memory, as raw text.
 - **Run time.** With the real entries fetched and gemmi + pdb-tools installed, the full suite (130 tests) takes
   about 7.5 minutes. Without the real entries, it takes a few seconds.
+
+## 11. Phase 3 status (2026-10-24): done
+
+**The 6 new tools** (48 in total):
+
+| Group | Tools |
+|---|---|
+| Identifiers | `cif_label2auth` (`-chain`, `-res`), `cif_auth2label` |
+| Categories / blocks | `cif_cat`, `cif_delcat`, `cif_keepcat`, `cif_blocks` |
+
+- **`cif_label2auth`.** Copies `label_asym_id` → `auth_asym_id` and, for polymer residues, `label_seq_id` →
+  `auth_seq_id` (insertion codes removed); ligands and waters keep their numbers. Links and anisotropic rows
+  follow. It refuses when two residues would end up with the same chain and number.
+- **`cif_auth2label`.** Copies author chains onto the label chains of polymers only. It refuses when an author
+  chain holds two polymers, or when the new name is already the label chain of a ligand or water.
+- **`cif_cat -_atom_site[.col,col]`.** One category as TSV: a header line, then one line per row; nulls as in the
+  file; tabs, newlines and backslashes escaped. With several blocks, the header is repeated only when the
+  columns change.
+- **`cif_delcat` / `cif_keepcat`.** Comma-separated names, case-insensitive; a trailing `*` matches a prefix
+  (`'-_pdbx_validate*'`). `cif_keepcat -_atom_site,_struct_conn` gives the same output as `cif_keepcoord`.
+- **`cif_blocks`.** Lists the block names, or writes the named blocks; it stops reading once they are written
+  (quick for one component of the whole CCD).
+
+**Fixes:**
+- **`cif_frompdb` and TER records** (found while planning). In a PDB file with blank chains whose numbering
+  restarts after each TER (typical MD output), two molecules got the same label ids. Now each TER record ends a
+  molecule, a blank chain gets its label chain as author chain (or the next free name), and later models without
+  TER records are matched by chain and residue number.
+- **`cif_topdb`** writes a TER record after the last residue of each polymer, with a serial number.
+- **Quoted `'.'` and `'?'`.** The reader returns them as `_cif.Text`, a str that is not equal to the null, so
+  `value in ('.', '?')` tests only match real nulls, and `quote()` writes them back in quotes (`cif_tidy`, rows
+  formatted afresh).
+- **`cif_selaltloc`** removes links (`_struct_conn`) to a removed conformer, and sets `pdbx_ptnr*_label_alt_id`
+  to `.` on links to the kept one. None of the 10 real entries has such links, so this is tested on a fixture.
+- **`parse()`** accepts category prefixes (`'_pdbx_*'`).
+
+**Tested:**
+- `tests/test_tools_phase3.py`: 31 unit and command-line tests; they also pass on Python 3.9.
+- Real entries:
+  - the new tools run on every entry with the phase-1 consistency checks;
+  - `cif_label2auth` gives author ids equal to the label ids;
+  - when `cif_auth2label` succeeds, it never merges two label chains;
+  - `cif_cat` prints one line per atom, `cif_blocks` lists the entry, and `cif_keepcat` matches `cif_keepcoord`;
+  - the PDB round trip still gives back the label ids, now through TER records.
+- What the identifier tools do on the unedited entries:
+
+  | Entry | `cif_auth2label` | `cif_label2auth -res` |
+  |---|---|---|
+  | 1D3Z, 1EHZ, 1EJG, 4HHB | no change | no change |
+  | 1JJ2, 1KX5, 4V6X | changes the label chains | renumbers |
+  | 1PPB | changes the label chains | refuses: `H 16` would become `H 1`, the number of the inhibitor 0G6 |
+  | 2RH1 | no change | refuses: `A 267` would become `A 402`, the number of a sulfate |
+  | 6VXX | no change | renumbers |
+
+  Without `-res`, `cif_label2auth` (chains and numbers) works on all 10, because ligands then move to chains of
+  their own.
+- **Full suite:** 163 tests pass, in about 8.5 minutes, with the real entries, gemmi and pdb-tools installed. The
+  pdb-tools cross-check is unchanged by the new TER records.
+
+**Known limitations:**
+- `cif_label2auth` and `cif_auth2label` leave the other categories that name chains or residues
+  (`_struct_asym`, `_pdbx_poly_seq_scheme`, `_struct_conf`, ...) as they were; `cif_prune` is postponed.
+- `cif_delcat` / `cif_keepcat` check nothing: removing `_atom_site` leaves `_atom_site_anisotrop` without atoms.
+- `cif_cat` prints a quoted `'.'` and a null `.` the same way.

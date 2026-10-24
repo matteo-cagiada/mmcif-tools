@@ -58,7 +58,7 @@ import re
 import sys
 
 __all__ = [
-    'ALL', 'CIFError', 'DataBlock', 'Loop', 'LoopEnd', 'Row', 'Verbatim',
+    'ALL', 'CIFError', 'DataBlock', 'Loop', 'LoopEnd', 'Row', 'Text', 'Verbatim',
     'Writer', 'column', 'get_scheme', 'open_input', 'parse', 'quote',
     'stdin', 'stdout', 'write',
 ]
@@ -97,6 +97,36 @@ _BARE_RUN = re.compile(r'\S+').finditer
 # character, and no '_' (so they cannot be a keyword such as data_x).
 _PLAIN = re.compile(r'[A-Za-z0-9.+\-][A-Za-z0-9.+\-*:,()/]*\Z').match
 _DQUOTE_BREAK = re.compile(r'"\s').search
+
+
+class Text(str):
+    """A quoted '.' or '?': the text itself, not a null.
+
+    CIF reads a bare . or ? as a null value, but '.' or "?" in quotes (or in
+    a text field) as one character of text. The reader returns those as
+    Text, which compares unequal to the bare null ('.' == Text('.') is
+    False), so that `value in ('.', '?')` tests only match nulls, and quote()
+    writes it back in quotes.
+    """
+
+    __slots__ = ()
+
+    def __eq__(self, other):
+        return isinstance(other, Text) and str.__eq__(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash((Text, str(self)))
+
+    def __repr__(self):
+        return 'Text({})'.format(str.__repr__(self))
+
+
+def _text(value):
+    """A value read from quotes or a text field."""
+    return Text(value) if value == '.' or value == '?' else value
 
 
 class CIFError(Exception):
@@ -194,7 +224,8 @@ class Row:
     """One record of a parsed category.
 
     Read and modify values by column name: `row['B_iso_or_equiv'] = '10.00'`.
-    Values are plain strings; CIF nulls are the strings '.' and '?'.
+    Values are plain strings; CIF nulls are the strings '.' and '?' (a '.'
+    or '?' read from quotes is a Text instead, which is not a null).
 
     The values of a row read from a file are a tuple, so they cannot be
     changed behind the writer's back (`row.values[3] = 'x'` raises
@@ -346,7 +377,7 @@ def _tokens(line, lineno=None):
                 kind = VALUE
             yield m.start('bare'), m.end('bare'), tok, kind
         else:
-            yield m.start(group) - 1, m.end(group) + 1, m.group(group), VALUE
+            yield m.start(group) - 1, m.end(group) + 1, _text(m.group(group)), VALUE
 
 
 def _unquote_tokens(parts):
@@ -362,7 +393,7 @@ def _unquote_tokens(parts):
         if first == "'" or first == '"':
             if len(tok) < 2 or tok[-1] != first:
                 return None
-            out.append(tok[1:-1])
+            out.append(_text(tok[1:-1]))
         else:
             out.append(tok)
     return out
@@ -450,26 +481,36 @@ def parse(fhandle, categories=DEFAULT_CATEGORIES):
     `fhandle` is any iterable of lines (keep line endings, e.g. open the file
     with `newline=''` or use `open_input`). `categories` lists the categories
     to parse into Loop/Row/LoopEnd events, e.g. ('_atom_site',
-    '_atom_site_anisotrop'); pass ALL to parse every category.
+    '_atom_site_anisotrop'); a name ending in '*' is a prefix ('_pdbx_*'),
+    and ALL parses every category. Names are case-insensitive.
     """
     if isinstance(categories, str):
         categories = (categories,)
-    wanted = set()
+    wanted, prefixes = set(), []
     for cat in categories:
         cat = cat.lower()
-        wanted.add(cat if cat == ALL or cat.startswith('_') else '_' + cat)
-    return _Reader(fhandle, wanted).events()
+        if cat != ALL and not cat.startswith('_'):
+            cat = '_' + cat
+        if cat != ALL and cat.endswith('*'):
+            prefixes.append(cat.rstrip('*'))
+        else:
+            wanted.add(cat)
+    return _Reader(fhandle, wanted, tuple(prefixes)).events()
 
 
 class _Reader:
 
-    def __init__(self, fhandle, wanted):
+    def __init__(self, fhandle, wanted, prefixes=()):
         self.lines = _Lines(fhandle)
         self.everything = ALL in wanted
         self.wanted = wanted
+        self.prefixes = prefixes
 
     def _wanted(self, category):
-        return self.everything or category.lower() in self.wanted
+        if self.everything:
+            return True
+        low = category.lower()
+        return low in self.wanted or bool(self.prefixes) and low.startswith(self.prefixes)
 
     def _text_field(self, first):
         """Read a text field opened by `first`; return (lines, closing_line, value)."""
@@ -480,7 +521,7 @@ class _Reader:
             if line is None:
                 raise CIFError('unterminated text field', start)
             if line[:1] == ';':
-                return parts, line, _strip_eol(''.join(parts)[1:])
+                return parts, line, _text(_strip_eol(''.join(parts)[1:]))
             parts.append(line)
 
     def events(self):
@@ -765,9 +806,12 @@ class _Reader:
 def quote(value, eol='\n'):
     """Format a value as a CIF token, quoting only when needed.
 
-    '.' and '?' are written bare (CIF null values).
+    '.' and '?' are written bare (CIF null values); a Text '.' or '?' is
+    written in quotes.
     """
-    if not isinstance(value, str):
+    if type(value) is not str:
+        if isinstance(value, Text):
+            return "'" + value + "'"
         value = str(value)
     if _PLAIN(value):  # numbers, names, '.', ...: the common case
         return value

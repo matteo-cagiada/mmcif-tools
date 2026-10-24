@@ -29,17 +29,24 @@ the label_* columns, label identifiers are assigned as in PDB entries:
                      each ligand type and water are entities of their own
     label_seq_id     1, 2, ... along each polymer chain; '.' elsewhere
 
-Polymer residues are those before the TER record of their chain, or, in
-files without TER records, those from the first to the last ATOM record of
-the chain (so modified residues inside a chain belong to it). For chains
-without missing residues this gives the label identifiers of the PDB entry;
-but label_seq_id only counts the residues present in the file (SEQRES is
-not used), so it differs from the entry after missing residues, and PDB
-entries order ligand instances and group glycans (branched entities) by
-their own conventions. Missing
-elements are assigned as by cif_element. Atom ids run from 1 over the
-whole file; models keep their MODEL numbers. ANISOU, CONECT and the other
-PDB records are not converted.
+A TER record ends a polymer: the residues of a chain up to a TER record
+are one polymer, and the next TER record of the same chain ends another.
+So a file whose chains are blank or repeated, such as MD output with one
+TER record per molecule, gets one label_asym_id per molecule. In chains
+without TER records, the polymer runs from the first to the last ATOM
+record (so modified residues inside a chain belong to it).
+
+Atoms with a blank chain get their label_asym_id as their author chain, or
+the next free name when another chain of the file already has it (this
+replaces pdb_chainbows | pdb_tocif).
+
+For chains without missing residues this gives the label identifiers of the
+PDB entry; but label_seq_id only counts the residues present in the file
+(SEQRES is not used), so it differs from the entry after missing residues,
+and PDB entries order ligand instances and group glycans (branched
+entities) by their own conventions. Missing elements are assigned as by
+cif_element. Atom ids run from 1 over the whole file; models keep their
+MODEL numbers. ANISOU, CONECT and the other PDB records are not converted.
 
 Usage:
     cif_frompdb <pdb file>
@@ -100,11 +107,16 @@ def _atom(line, model):
 
 
 def read_pdb(lines):
-    """(atoms, id code or None, CRYST1 line or None, chains that have TER records,
-    {residue: True if it is before its chain's TER})."""
+    """(atoms, id code or None, CRYST1 line or None, closed segments).
+
+    Each atom gets a 'segment': the number of TER records of its chain seen
+    before it in its model, so that a TER starts a new molecule even when
+    chains are blank. Closed segments are the (chain, segment) pairs of the
+    first model that end with a TER record.
+    """
     atoms, idcode, cryst1 = [], None, None
     model = '1'
-    ter_chains, before_ter = set(), {}
+    ters, closed = {}, set()  # chain -> TER records so far in this model
     for line in lines:
         record = line[:6]
         if record.startswith('HEADER') and line[62:66].strip():
@@ -113,27 +125,33 @@ def read_pdb(lines):
             cryst1 = line
         elif record.startswith('MODEL'):
             model = line[10:14].strip() or line[5:].strip() or '1'
+            ters = {}
         elif record.startswith(('ATOM', 'HETATM')):
             atom = _atom(line, model)
+            atom['segment'] = ters.get(atom['chain'], 0)
             atoms.append(atom)
+        elif record.startswith('TER') and atoms and atoms[-1]['model'] == model:
+            chain = atoms[-1]['chain']
             if model == atoms[0]['model']:
-                before_ter.setdefault(_residue(atom), atom['chain'] not in ter_chains)
-        elif record.startswith('TER') and atoms and model == atoms[0]['model']:
-            ter_chains.add(atoms[-1]['chain'])  # TER records of the first model
-    return atoms, idcode, cryst1, ter_chains, before_ter
+                closed.add((chain, ters.get(chain, 0)))
+            ters[chain] = ters.get(chain, 0) + 1
+    return atoms, idcode, cryst1, closed
 
 
 def _residue(atom):
     """A residue position; residues modelled as two residue types (altlocs)
     share it."""
-    return atom['chain'], atom['resnum'], atom['icode']
+    return atom['chain'], atom['segment'], atom['resnum'], atom['icode']
 
 
-def assign_labels(atoms, ter_chains, before_ter):
-    """Add label_asym_id, label_entity_id and label_seq_id to the atoms."""
+def assign_labels(atoms, closed):
+    """Add label_asym_id, label_entity_id and label_seq_id to the atoms, and
+    give atoms of a blank chain an author chain (their label_asym_id, unless
+    another chain of the file has that name)."""
     first_model = atoms[0]['model']
     position, names = {}, {}  # residue -> index in file order, first residue name
-    first_atom, last_atom = {}, {}  # chain -> first / last index of an ATOM residue
+    first_atom, last_atom = {}, {}  # segment -> first / last index of an ATOM residue
+    ter_chains = {chain for chain, _ in closed}
     for atom in atoms:
         if atom['model'] != first_model:
             continue
@@ -141,21 +159,22 @@ def assign_labels(atoms, ter_chains, before_ter):
         i = position.setdefault(key, len(position))
         names.setdefault(key, atom['resname'])
         if atom['group'] == 'ATOM':
-            first_atom.setdefault(atom['chain'], i)
-            last_atom[atom['chain']] = i
+            segment = key[:2]
+            first_atom.setdefault(segment, i)
+            last_atom[segment] = i
 
     def is_polymer(i, key):
-        chain, resname = key[0], names[key]
-        if resname in WATERS:
+        segment, resname = key[:2], names[key]
+        if resname in WATERS or segment not in first_atom:
             return False
-        if chain in ter_chains:
-            return before_ter.get(key, False)
-        return chain in first_atom and first_atom[chain] <= i <= last_atom[chain]
+        if key[0] in ter_chains:
+            return segment in closed  # a molecule ended by TER
+        return first_atom[segment] <= i <= last_atom[segment]
 
     labels, asym_of, sequences, counters = {}, {}, {}, {}
     for key, i in position.items():
         if is_polymer(i, key):
-            instance = ('polymer', key[0])
+            instance = ('polymer',) + key[:2]
         elif names[key] in WATERS:
             instance = ('water', key[0])
         else:
@@ -179,21 +198,41 @@ def assign_labels(atoms, ter_chains, before_ter):
         else:
             ident = ('ligand', names[instance[1]])
         entity_of[instance] = entity_ids.setdefault(ident, str(len(entity_ids) + 1))
+    # Later models without the TER records of the first: match residues by
+    # chain and number when that is unambiguous.
+    by_number = {}
+    for key, label in labels.items():
+        number = (key[0],) + key[2:]
+        by_number[number] = label if number not in by_number else None
+    used = {atom['chain'] for atom in atoms if atom['chain']}
+    blank_chains = {}  # label_asym_id -> author chain, for atoms of a blank chain
     for atom in atoms:
-        label = labels.get(_residue(atom))
+        key = _residue(atom)
+        label = labels.get(key)
+        if label is None and atom['model'] != first_model:
+            label = by_number.get((key[0],) + key[2:])
         if label is None:  # a residue only in a later model
             atom['asym'], atom['entity'], atom['seq'] = '?', '?', '.'
         else:
             instance, seq = label
             atom['asym'], atom['entity'], atom['seq'] = asym_of[instance], entity_of[instance], seq
+        if not atom['chain'] and atom['asym'] != '?':
+            asym = atom['asym']
+            if asym not in blank_chains:
+                name, n = asym, 0
+                while name in used:
+                    name, n = asym_name(n), n + 1
+                used.add(name)
+                blank_chains[asym] = name
+            atom['chain'] = blank_chains[asym]
 
 
 def run(fhandle, name='structure'):
     """Yield the mmCIF text."""
-    atoms, idcode, cryst1, ter_chains, before_ter = read_pdb(fhandle)
+    atoms, idcode, cryst1, closed = read_pdb(fhandle)
     if not atoms:
         raise _cif.CIFError('No ATOM/HETATM records to convert')
-    assign_labels(atoms, ter_chains, before_ter)
+    assign_labels(atoms, closed)
     block = idcode or name
     yield '# Converted to mmCIF by cif-tools (cif_frompdb)\n'
     yield 'data_{}\n#\n'.format(block)

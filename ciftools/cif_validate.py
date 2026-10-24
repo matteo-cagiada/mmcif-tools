@@ -19,7 +19,9 @@
 Validates the structure of an mmCIF file.
 
 Checks the CIF syntax and the coordinates (_atom_site); it does not check
-the file against the PDBx/mmCIF dictionary. Errors:
+the file against the PDBx/mmCIF dictionary (item types, allowed values,
+mandatory items), which needs the dictionary file and an external
+validator, e.g. `gemmi validate -d mmcif_pdbx_v50.dic file.cif`. Errors:
 
     - CIF syntax errors (with their line number)
     - no _atom_site category, or required _atom_site columns missing (id,
