@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,22 +16,28 @@
 # limitations under the License.
 
 """
-Download the real PDB entries listed in tests/real_set.txt into tests/real/.
+Download the real entries listed in tests/real_set.txt into tests/real/.
 
-Files already present are skipped. Standard library only.
+PDB ids come from the RCSB; AlphaFold DB ids (AF-...) from the AlphaFold
+DB, compressed here. Files already present are skipped. Standard library
+only.
 
 Usage:
     python tests/fetch_real.py
 """
 
+import gzip
 import os
 import sys
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+
+from mmciftools.mmcif_fetch import url_for  # noqa: E402
+
 MANIFEST = os.path.join(HERE, 'real_set.txt')
 TARGET = os.path.join(HERE, 'real')
-URL = 'https://files.rcsb.org/download/{}.cif.gz'
 
 
 def entries():
@@ -51,10 +57,11 @@ def main():
             continue
         tmp = path + '.part'
         try:
-            with urllib.request.urlopen(URL.format(pdb_id), timeout=60) as resp, \
-                    open(tmp, 'wb') as out:
-                out.write(resp.read())
-        except OSError as err:
+            url, gzipped = url_for(pdb_id)
+            with urllib.request.urlopen(url, timeout=60) as resp, open(tmp, 'wb') as out:
+                data = resp.read()
+                out.write(data if gzipped else gzip.compress(data))
+        except Exception as err:  # network errors, FetchError
             sys.stderr.write('ERROR fetching {}: {}\n'.format(pdb_id, err))
             if os.path.exists(tmp):
                 os.remove(tmp)

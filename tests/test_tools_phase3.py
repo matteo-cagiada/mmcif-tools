@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,9 +26,10 @@ import unittest
 from support import (  # noqa: E402
     DATA, ROOT, _cif, read, reference_problems, rows, run_tool)
 
-from ciftools import (  # noqa: E402
-    cif_auth2label, cif_blocks, cif_cat, cif_chain, cif_delcat, cif_frompdb, cif_keepcat,
-    cif_keepcoord, cif_label2auth, cif_rplchain, cif_selaltloc, cif_topdb, cif_validate)
+from mmciftools import (  # noqa: E402
+    mmcif_auth2label, mmcif_blocks, mmcif_cat, mmcif_chain, mmcif_delcat, mmcif_frompdb,
+    mmcif_keepcat, mmcif_keepcoord, mmcif_label2auth, mmcif_rplchain, mmcif_selaltloc, mmcif_topdb,
+    mmcif_validate)
 
 WWPDB = read('wwpdb_like.cif')
 NMR = read('nmr_models.cif')
@@ -59,11 +60,11 @@ def pdb_atom(serial, name, resname, chain, resnum, x, group='ATOM', element=None
 
 
 def convert(pdb):
-    return ''.join(cif_frompdb.run(io.StringIO(pdb), 'x'))
+    return ''.join(mmcif_frompdb.run(io.StringIO(pdb), 'x'))
 
 
 def cli(name, *args):
-    return subprocess.run([sys.executable, '-m', 'ciftools.' + name] + list(args),
+    return subprocess.run([sys.executable, '-m', 'mmciftools.' + name] + list(args),
                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE, cwd=ROOT)
 
@@ -102,19 +103,19 @@ class TestFromPdbTer(unittest.TestCase):
 class TestTopdbTer(unittest.TestCase):
 
     def test_ter_after_each_polymer(self):
-        lines = run_tool(cif_topdb, WWPDB).splitlines()
+        lines = run_tool(mmcif_topdb, WWPDB).splitlines()
         ter = [i for i, line in enumerate(lines) if line.startswith('TER')]
         self.assertEqual(len(ter), 1)
         self.assertEqual(lines[ter[0]].rstrip(), 'TER      16      GLY A  11A')
         self.assertEqual(len(lines[ter[0]]), 80)
         self.assertEqual(lines[ter[0] - 1][:6], 'ATOM  ')
         self.assertEqual(lines[ter[0] + 1][:11], 'HETATM   17')
-        nmr = run_tool(cif_topdb, NMR).splitlines()
+        nmr = run_tool(mmcif_topdb, NMR).splitlines()
         self.assertEqual([line[:6] for line in nmr if not line.startswith('ATOM')],
                          ['MODEL ', 'TER   ', 'ENDMDL', 'MODEL ', 'TER   ', 'ENDMDL', 'END   '])
 
     def test_round_trip_keeps_label_ids(self):
-        back = convert(run_tool(cif_topdb, WWPDB))
+        back = convert(run_tool(mmcif_topdb, WWPDB))
         for col in ('label_asym_id', 'label_seq_id', 'auth_asym_id', 'auth_seq_id'):
             self.assertEqual(column(back, col), column(WWPDB, col), col)
 
@@ -162,75 +163,75 @@ class TestSelaltlocLinks(unittest.TestCase):
             "hydrog2 hydrog A SER 2 OG B SO4 . O1 3.10 B . \n")
         for altloc, kept in ((None, 'hydrog1'), ('B', 'hydrog2')):
             with self.subTest(altloc=altloc):
-                out = run_tool(cif_selaltloc, text, altloc)
+                out = run_tool(mmcif_selaltloc, text, altloc)
                 links = rows(out, '_struct_conn')
                 self.assertEqual([(r['id'], r['pdbx_ptnr1_label_alt_id']) for r in links],
                                  [(kept, '.')])
 
     def test_without_altloc_links(self):
-        self.assertEqual(run_tool(cif_selaltloc, WWPDB, None).count('hydrog1'), 1)
+        self.assertEqual(run_tool(mmcif_selaltloc, WWPDB, None).count('hydrog1'), 1)
 
 
 class TestCat(unittest.TestCase):
 
     def test_table(self):
-        lines = run_tool(cif_cat, WWPDB, '_atom_site', ['id', 'AUTH_ASYM_ID', 'Cartn_x']).splitlines()
+        lines = run_tool(mmcif_cat, WWPDB, '_atom_site', ['id', 'AUTH_ASYM_ID', 'Cartn_x']).splitlines()
         self.assertEqual(lines[0], 'id\tAUTH_ASYM_ID\tCartn_x')
         self.assertEqual(lines[1], '1\tA\t21.598')
         self.assertEqual(len(lines), len(rows(WWPDB)) + 1)
-        full = run_tool(cif_cat, WWPDB, '_atom_site').splitlines()
+        full = run_tool(mmcif_cat, WWPDB, '_atom_site').splitlines()
         self.assertEqual(full[0].split('\t'), rows(WWPDB)[0].loop.columns)
 
     def test_pairs_and_escapes(self):
-        self.assertEqual(run_tool(cif_cat, WWPDB, '_cell').splitlines()[1].split('\t')[:2],
+        self.assertEqual(run_tool(mmcif_cat, WWPDB, '_cell').splitlines()[1].split('\t')[:2],
                          ['1XYZ', '53.632'])
         text = "data_x\n_t.a\n;line 1\nline\t2\n;\n_t.b 'a\\b'\n_t.c '.'\n"
-        self.assertEqual(run_tool(cif_cat, text, '_t'), 'a\tb\tc\nline 1\\nline\\t2\ta\\\\b\t.\n')
+        self.assertEqual(run_tool(mmcif_cat, text, '_t'), 'a\tb\tc\nline 1\\nline\\t2\ta\\\\b\t.\n')
 
     def test_header_once_per_column_set(self):
         block = "data_{0}\n_c.id {0}\n_c.name x\n"
         text = block.format('a') + block.format('b') + "data_c\n_c.id c\n"
-        self.assertEqual(run_tool(cif_cat, text, '_c'), 'id\tname\na\tx\nb\tx\nid\nc\n')
+        self.assertEqual(run_tool(mmcif_cat, text, '_c'), 'id\tname\na\tx\nb\tx\nid\nc\n')
 
     def test_errors(self):
         with self.assertRaises(_cif.CIFError):
-            run_tool(cif_cat, WWPDB, '_nothing')
+            run_tool(mmcif_cat, WWPDB, '_nothing')
         with self.assertRaises(_cif.CIFError):
-            run_tool(cif_cat, WWPDB, '_atom_site', ['bogus'])
+            run_tool(mmcif_cat, WWPDB, '_atom_site', ['bogus'])
 
 
 class TestDelKeepCat(unittest.TestCase):
 
     def test_delcat(self):
-        out = run_tool(cif_delcat, WWPDB, ['_cell', '_atom_site_anisotrop'])
+        out = run_tool(mmcif_delcat, WWPDB, ['_cell', '_atom_site_anisotrop'])
         self.assertEqual(rows(out, '_cell'), [])
         self.assertEqual(rows(out, '_atom_site_anisotrop'), [])
         self.assertEqual(len(rows(out)), len(rows(WWPDB)))
         self.assertNotIn('_cell.', out)
         self.assertNotIn('#\n#', out.replace(' ', ''))  # one separator between categories
-        self.assertEqual(run_tool(cif_delcat, WWPDB, ['_nothing']), WWPDB)
+        self.assertEqual(run_tool(mmcif_delcat, WWPDB, ['_nothing']), WWPDB)
 
     def test_prefix(self):
-        out = run_tool(cif_delcat, WWPDB, ['_atom_site*'])
+        out = run_tool(mmcif_delcat, WWPDB, ['_atom_site*'])
         self.assertNotIn('_atom_site', out)
         self.assertIn('_struct_conn.id', out)
-        kept = run_tool(cif_keepcat, WWPDB, ['_STRUCT*'])
+        kept = run_tool(mmcif_keepcat, WWPDB, ['_STRUCT*'])
         self.assertEqual([line for line in kept.splitlines() if line.startswith('_')],
                          [line for line in WWPDB.splitlines() if line.startswith('_struct')])
 
     def test_keepcat(self):
-        out = run_tool(cif_keepcat, WWPDB, ['_cell'])
+        out = run_tool(mmcif_keepcat, WWPDB, ['_cell'])
         self.assertTrue(out.startswith('data_1XYZ\n'))
         self.assertEqual(values(out, '_cell'), values(WWPDB, '_cell'))
         self.assertEqual(rows(out), [])
         for text in (WWPDB, NMR, read('multi_block.cif')):
-            self.assertEqual(run_tool(cif_keepcat, text, ['_atom_site', '_struct_conn']),
-                             run_tool(cif_keepcoord, text))
+            self.assertEqual(run_tool(mmcif_keepcat, text, ['_atom_site', '_struct_conn']),
+                             run_tool(mmcif_keepcoord, text))
 
     def test_bad_names(self):
         for option in ('-_', '-a*b', '-_cell.length_a', '-,'):
             with self.subTest(option=option):
-                proc = cli('cif_delcat', option, os.path.join(DATA, 'wwpdb_like.cif'))
+                proc = cli('mmcif_delcat', option, os.path.join(DATA, 'wwpdb_like.cif'))
                 self.assertEqual(proc.returncode, 1)
                 self.assertIn(b'ERROR!!', proc.stderr)
 
@@ -239,14 +240,14 @@ class TestBlocks(unittest.TestCase):
     MULTI = read('multi_block.cif')
 
     def test_list_and_select(self):
-        self.assertEqual(run_tool(cif_blocks, self.MULTI), 'first\nsecond\n')
-        second = run_tool(cif_blocks, self.MULTI, ['SECOND'])
+        self.assertEqual(run_tool(mmcif_blocks, self.MULTI), 'first\nsecond\n')
+        second = run_tool(mmcif_blocks, self.MULTI, ['SECOND'])
         self.assertTrue(second.startswith('data_second\n'))
         self.assertEqual(values(second), values(self.MULTI)[-len(values(second)):])
-        both = run_tool(cif_blocks, self.MULTI, ['second', 'first'])
-        self.assertEqual(run_tool(cif_blocks, both), 'first\nsecond\n')  # file order
+        both = run_tool(mmcif_blocks, self.MULTI, ['second', 'first'])
+        self.assertEqual(run_tool(mmcif_blocks, both), 'first\nsecond\n')  # file order
         with self.assertRaises(_cif.CIFError):
-            run_tool(cif_blocks, self.MULTI, ['third'])
+            run_tool(mmcif_blocks, self.MULTI, ['third'])
 
     def test_stops_after_the_last_block(self):
         def lines():
@@ -254,14 +255,14 @@ class TestBlocks(unittest.TestCase):
             yield 'data_b\n'
             raise AssertionError('read past the requested blocks')
         out = io.StringIO()
-        _cif.write(cif_blocks.run(lines(), ['a']), out)
+        _cif.write(mmcif_blocks.run(lines(), ['a']), out)
         self.assertEqual(out.getvalue(), 'data_a\n_x.v 1\n')
 
 
 class TestLabel2Auth(unittest.TestCase):
 
     def test_chains_and_numbers(self):
-        out = run_tool(cif_label2auth, CONN_AUTH, True, True)
+        out = run_tool(mmcif_label2auth, CONN_AUTH, True, True)
         atoms = rows(out)
         self.assertEqual([a['auth_asym_id'] for a in atoms], [a['label_asym_id'] for a in atoms])
         self.assertEqual([(a['auth_seq_id'], a['pdbx_PDB_ins_code']) for a in atoms
@@ -276,22 +277,22 @@ class TestLabel2Auth(unittest.TestCase):
         self.assertEqual(reference_problems(out), set())
 
     def test_only_one(self):
-        chains = rows(run_tool(cif_label2auth, CONN_AUTH, True, False))
+        chains = rows(run_tool(mmcif_label2auth, CONN_AUTH, True, False))
         self.assertEqual([a['auth_seq_id'] for a in chains], column(CONN_AUTH, 'auth_seq_id'))
         self.assertEqual([a['auth_asym_id'] for a in chains], column(CONN_AUTH, 'label_asym_id'))
-        numbers = rows(run_tool(cif_label2auth, CONN_AUTH, False, True))
+        numbers = rows(run_tool(mmcif_label2auth, CONN_AUTH, False, True))
         self.assertEqual([a['auth_asym_id'] for a in numbers], column(CONN_AUTH, 'auth_asym_id'))
         self.assertEqual(sorted({a['auth_seq_id'] for a in numbers}), ['1', '2', '201', '3', '301', '302'])
 
     def test_refuses_clashes(self):
         text = CONN_AUTH.replace('? 201 SO4 A', '? 2   SO4 A')
         with self.assertRaises(_cif.CIFError) as ctx:
-            run_tool(cif_label2auth, text, False, True)
+            run_tool(mmcif_label2auth, text, False, True)
         self.assertIn('would both become A 2', str(ctx.exception))
-        self.assertEqual(len(rows(run_tool(cif_label2auth, text, True, True))), len(rows(text)))
+        self.assertEqual(len(rows(run_tool(mmcif_label2auth, text, True, True))), len(rows(text)))
 
     def test_options(self):
-        proc = cli('cif_label2auth', '-both', os.path.join(DATA, 'wwpdb_like.cif'))
+        proc = cli('mmcif_label2auth', '-both', os.path.join(DATA, 'wwpdb_like.cif'))
         self.assertEqual(proc.returncode, 1)
         self.assertIn(b'Invalid option', proc.stderr)
 
@@ -299,30 +300,30 @@ class TestLabel2Auth(unittest.TestCase):
 class TestAuth2Label(unittest.TestCase):
 
     def test_polymer_chains_follow(self):
-        renamed = run_tool(cif_rplchain, WWPDB, ('A', 'H'))
-        out = run_tool(cif_auth2label, renamed)
+        renamed = run_tool(mmcif_rplchain, WWPDB, ('A', 'H'))
+        out = run_tool(mmcif_auth2label, renamed)
         atoms = rows(out)
         self.assertEqual(sorted({(a['label_asym_id'], a['label_comp_id']) for a in atoms}),
                          [('B', 'SO4'), ('C', 'HOH'), ('H', 'GLY'), ('H', 'MET'), ('H', 'SER')])
         self.assertEqual(column(out, 'pdbx_label_asym_id', '_atom_site_anisotrop'), ['H', 'H', 'B'])
         self.assertEqual(rows(out, '_struct_conn')[0]['ptnr1_label_asym_id'], 'H')
         self.assertEqual(reference_problems(out), set())
-        self.assertEqual(run_tool(cif_auth2label, WWPDB), WWPDB)  # already the same
+        self.assertEqual(run_tool(mmcif_auth2label, WWPDB), WWPDB)  # already the same
 
     def test_multichar(self):
-        out = run_tool(cif_auth2label, MULTICHAR)
+        out = run_tool(mmcif_auth2label, MULTICHAR)
         self.assertEqual(column(out, 'label_asym_id'), column(MULTICHAR, 'auth_asym_id'))
 
     def test_refuses_merges(self):
         with self.assertRaises(_cif.CIFError) as ctx:
-            run_tool(cif_auth2label, run_tool(cif_rplchain, WWPDB, ('A', 'B')))
+            run_tool(mmcif_auth2label, run_tool(mmcif_rplchain, WWPDB, ('A', 'B')))
         self.assertIn('ligand or water', str(ctx.exception))
         with self.assertRaises(_cif.CIFError) as ctx:
-            run_tool(cif_auth2label, run_tool(cif_chain, MULTICHAR, 'Z'))
+            run_tool(mmcif_auth2label, run_tool(mmcif_chain, MULTICHAR, 'Z'))
         self.assertIn('holds two polymers', str(ctx.exception))
 
     def test_command_line(self):
-        proc = cli('cif_auth2label', os.path.join(DATA, 'wwpdb_like.cif'))
+        proc = cli('mmcif_auth2label', os.path.join(DATA, 'wwpdb_like.cif'))
         self.assertEqual(proc.returncode, 0)
         self.assertEqual(proc.stdout.decode(), WWPDB)
 
@@ -330,8 +331,8 @@ class TestAuth2Label(unittest.TestCase):
 class TestCommandLine(unittest.TestCase):
 
     def test_help(self):
-        for name in ('cif_cat', 'cif_delcat', 'cif_keepcat', 'cif_blocks', 'cif_label2auth',
-                     'cif_auth2label'):
+        for name in ('mmcif_cat', 'mmcif_delcat', 'mmcif_keepcat', 'mmcif_blocks', 'mmcif_label2auth',
+                     'mmcif_auth2label'):
             with self.subTest(tool=name):
                 proc = cli(name, '--help')
                 self.assertEqual(proc.returncode, 0)
@@ -339,19 +340,19 @@ class TestCommandLine(unittest.TestCase):
 
     def test_outputs_validate(self):
         path = os.path.join(DATA, 'wwpdb_like.cif')
-        for name, args in (('cif_delcat', ['-_cell']), ('cif_keepcat', ['-_atom_site']),
-                           ('cif_label2auth', []), ('cif_blocks', ['-1XYZ'])):
+        for name, args in (('mmcif_delcat', ['-_cell']), ('mmcif_keepcat', ['-_atom_site']),
+                           ('mmcif_label2auth', []), ('mmcif_blocks', ['-1XYZ'])):
             with self.subTest(tool=name):
                 proc = cli(name, *(args + [path]))
                 self.assertEqual(proc.returncode, 0, proc.stderr)
-                lines, errors = cif_validate.run(io.StringIO(proc.stdout.decode(), newline=''))
+                lines, errors = mmcif_validate.run(io.StringIO(proc.stdout.decode(), newline=''))
                 self.assertEqual(errors, 0, ''.join(lines))
 
     def test_missing_items(self):
         path = os.path.join(DATA, 'wwpdb_like.cif')
-        for name, args, message in (('cif_cat', [path], b'option is required'),
-                                    ('cif_cat', ['-_nothing', path], b'No _nothing category'),
-                                    ('cif_blocks', ['-nope', path], b'No data block named nope')):
+        for name, args, message in (('mmcif_cat', [path], b'option is required'),
+                                    ('mmcif_cat', ['-_nothing', path], b'No _nothing category'),
+                                    ('mmcif_blocks', ['-nope', path], b'No data block named nope')):
             with self.subTest(tool=name, args=args):
                 proc = cli(name, *args)
                 self.assertEqual(proc.returncode, 1)

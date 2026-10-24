@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import tracemalloc
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ciftools import _cif  # noqa: E402
+from mmciftools import _cif  # noqa: E402
 
 COLUMNS = [
     'group_PDB', 'id', 'type_symbol', 'label_atom_id', 'label_alt_id', 'label_comp_id',
@@ -71,7 +71,7 @@ class NullSink:
 
 
 def edit_bfactors(events):
-    """Like cif_b: one value changed in every row."""
+    """Like mmcif_b: one value changed in every row."""
     for ev in events:
         if isinstance(ev, _cif.Row):
             ev['B_iso_or_equiv'] = '10.00'
@@ -79,7 +79,7 @@ def edit_bfactors(events):
 
 
 def edit_ids(events):
-    """Like cif_rplchain + cif_reres: three values changed in every row."""
+    """Like mmcif_rplchain + mmcif_reres: three values changed in every row."""
     for ev in events:
         if isinstance(ev, _cif.Row):
             ev['auth_asym_id'] = 'Z'

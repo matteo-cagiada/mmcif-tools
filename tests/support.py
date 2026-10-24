@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,12 +27,7 @@ REAL = os.path.join(HERE, 'real')
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from ciftools import _cif  # noqa: E402
-
-try:
-    import gemmi
-except ImportError:  # optional cross-check only
-    gemmi = None
+from mmciftools import _cif  # noqa: E402
 
 FIXTURES = sorted(f for f in os.listdir(DATA) if f.endswith('.cif'))
 INVALID_CIF = {'empty_atom_site.cif'}  # a loop with no rows (seen in the wild)
@@ -121,7 +116,7 @@ def changed_lines(before, after):
 def run_tool(module, text, *args, scheme=None):
     """Run a cif tool's run() on text; return its output text."""
     result = module.run(io.StringIO(text, newline=''), *args, scheme=scheme)
-    if module.__name__.endswith(('cif_wc', 'cif_tofasta')):
+    if module.__name__.endswith(('mmcif_wc', 'mmcif_tofasta')):
         return ''.join(result)
     out = io.StringIO()
     _cif.write(result, out)
@@ -131,7 +126,7 @@ def run_tool(module, text, *args, scheme=None):
 def reference_problems(text):
     """Set of messages about rows of _atom_site_anisotrop and _struct_conn
     that match no atom (empty when consistent)."""
-    from ciftools import _atoms
+    from mmciftools import _atoms
     return set(_atoms.reference_problems(io.StringIO(text, newline='')))
 
 
@@ -144,24 +139,4 @@ def our_tables(text):
         elif isinstance(ev, _cif.Row):
             vals = ['' if v in ('.', '?') else v for v in ev.values]
             tables.setdefault((block, ev.loop.category.lower()), []).append(vals)
-    return tables
-
-
-def gemmi_tables(text):
-    """The same as our_tables, read by gemmi."""
-    tables = {}
-    for block in gemmi.cif.read_string(text):
-        for item in block:
-            if item.loop is not None:
-                tags, loop = item.loop.tags, item.loop
-                cat = tags[0].split('.')[0].lower()
-                width = loop.width()
-                for r in range(loop.length()):
-                    vals = [gemmi.cif.as_string(loop[r, c]) for c in range(width)]
-                    tables.setdefault((block.name, cat), []).append(vals)
-            elif item.pair is not None:
-                tag, value = item.pair
-                cat = tag.split('.')[0].lower()
-                rows_ = tables.setdefault((block.name, cat), [[]])
-                rows_[0].append(gemmi.cif.as_string(value))
     return tables

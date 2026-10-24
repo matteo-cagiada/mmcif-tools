@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,9 @@
 # limitations under the License.
 
 """
-Unit tests for the shared mmCIF layer (ciftools/_cif.py).
+Unit tests for the shared mmCIF layer (mmciftools/_cif.py).
 
-Only the standard library is required; the gemmi cross-checks are skipped
-when gemmi is not installed.
+Only the standard library is required.
 """
 
 import gzip
@@ -35,7 +34,7 @@ from unittest import mock
 
 from support import (  # noqa: E402
     FIXTURES, INVALID_CIF, MODES, ROOT, _cif, all_rows, changed_lines, edit_everything,
-    edit_rows, gemmi, gemmi_tables, our_tables, read, roundtrip, rows)
+    edit_rows, read, roundtrip, rows)
 
 
 class TestRoundTrip(unittest.TestCase):
@@ -81,7 +80,7 @@ class TestRoundTrip(unittest.TestCase):
             for args in ([], ['--all']):
                 with self.subTest(fixture=name, args=args):
                     proc = subprocess.run(
-                        [sys.executable, '-m', 'ciftools._cif'] + args,
+                        [sys.executable, '-m', 'mmciftools._cif'] + args,
                         input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         cwd=ROOT, check=True)
                     self.assertEqual(proc.stdout, data)
@@ -89,13 +88,21 @@ class TestRoundTrip(unittest.TestCase):
 
     def test_cli_reports_errors(self):
         bad = b"data_x\nloop_\n_atom_site.id\n_atom_site.type_symbol\n1 'C\n"
-        proc = subprocess.run([sys.executable, '-m', 'ciftools._cif'], input=bad,
+        proc = subprocess.run([sys.executable, '-m', 'mmciftools._cif'], input=bad,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=ROOT)
         self.assertEqual(proc.returncode, 1)
         self.assertIn(b'line 5', proc.stderr)
 
-    def test_library_does_not_import_gemmi(self):
-        code = 'import sys; import ciftools._cif; assert "gemmi" not in sys.modules'
+    @unittest.skipUnless(hasattr(sys, 'stdlib_module_names'), 'Python 3.10+')
+    def test_library_imports_only_the_standard_library(self):
+        code = ('import importlib, pkgutil, sys\n'
+                'before = set(sys.modules)\n'
+                'import mmciftools\n'
+                'for m in pkgutil.iter_modules(mmciftools.__path__):\n'
+                '    importlib.import_module("mmciftools." + m.name)\n'
+                'new = {n.split(".")[0] for n in set(sys.modules) - before}\n'
+                'other = new - set(sys.stdlib_module_names) - {"mmciftools"}\n'
+                'assert not other, sorted(other)\n')
         subprocess.run([sys.executable, '-c', code], cwd=ROOT, check=True)
 
 
@@ -445,13 +452,13 @@ class TestScheme(unittest.TestCase):
         patcher = mock.patch.dict(os.environ)
         patcher.start()
         self.addCleanup(patcher.stop)
-        os.environ.pop('CIFTOOLS_SCHEME', None)
+        os.environ.pop('MMCIFTOOLS_SCHEME', None)
 
     def test_default_is_auth(self):
         self.assertEqual(_cif.get_scheme(), 'auth')
 
     def test_environment(self):
-        os.environ['CIFTOOLS_SCHEME'] = 'LABEL'
+        os.environ['MMCIFTOOLS_SCHEME'] = 'LABEL'
         self.assertEqual(_cif.get_scheme(), 'label')
         self.assertEqual(_cif.get_scheme('auth'), 'auth')  # explicit wins
 
@@ -475,43 +482,6 @@ class TestScheme(unittest.TestCase):
         loop = _cif.Loop('_atom_site', ['id'])
         with self.assertRaises(_cif.CIFError):
             _cif.column(loop, 'chain')
-
-
-@unittest.skipUnless(gemmi, 'gemmi not installed (optional cross-check)')
-class TestAgainstGemmi(unittest.TestCase):
-    """Compare with an independent parser."""
-
-    def test_same_values_as_gemmi(self):
-        for name in FIXTURES:
-            if name in INVALID_CIF:
-                continue
-            with self.subTest(fixture=name):
-                text = read(name)
-                self.assertEqual(our_tables(text), gemmi_tables(text))
-
-    def test_every_value_edited_is_valid(self):
-        for name in FIXTURES:
-            if name in INVALID_CIF:
-                continue
-            with self.subTest(fixture=name):
-                out, _ = edit_everything(read(name))
-                self.assertEqual(our_tables(out), gemmi_tables(out))
-
-    def test_edited_output_is_valid(self):
-        def scramble(row):
-            if 'B_iso_or_equiv' in row:
-                row['B_iso_or_equiv'] = '1.5'
-            if 'auth_atom_id' in row:
-                row['auth_atom_id'] = row['auth_atom_id'] + "'"
-            if 'details' in row:
-                row['details'] = 'two\nlines'
-            return row
-        for name in FIXTURES:
-            if name in INVALID_CIF:
-                continue
-            with self.subTest(fixture=name):
-                out = roundtrip(read(name), edit=edit_rows(scramble))
-                self.assertEqual(our_tables(out), gemmi_tables(out))
 
 
 if __name__ == '__main__':

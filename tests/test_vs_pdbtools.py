@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import unittest
 
 from support import _cif, read, read_path, real_entries  # noqa: E402
 
-from ciftools import _atoms  # noqa: E402
+from mmciftools import _atoms  # noqa: E402
 
 try:
     import pdbtools  # noqa: F401
@@ -49,20 +49,20 @@ FIXTURES = ['wwpdb_like.cif', 'nmr_models.cif', 'nucleic.cif', 'column_order.cif
 NULLS = ('.', '?')
 
 # Differences that follow from documented deviations (pdb-tools behaviour
-# that cif-tools does not copy): {(tool, args, structure or None): reason}
+# that mmcif-tools does not copy): {(tool, args, structure or None): reason}
 KNOWN = {
     ('selaltloc', '', None): 'pdb_selaltloc groups residues by comparing numbers as text and '
-                             'ignores insertion codes; cif_selaltloc chooses per residue',
+                             'ignores insertion codes; mmcif_selaltloc chooses per residue',
     ('selaltloc', '-A', None): 'pdb_selaltloc -A drops atoms without altloc in residues that '
-                               'have one; cif_selaltloc keeps them',
-    ('tofasta', '', '1kx5'): 'pdb_tofasta writes DNA as X; cif_tofasta gives the bases',
-    ('tofasta', '-multi', '1kx5'): 'pdb_tofasta writes DNA as X; cif_tofasta gives the bases',
+                               'have one; mmcif_selaltloc keeps them',
+    ('tofasta', '', '1kx5'): 'pdb_tofasta writes DNA as X; mmcif_tofasta gives the bases',
+    ('tofasta', '-multi', '1kx5'): 'pdb_tofasta writes DNA as X; mmcif_tofasta gives the bases',
     ('gap', '', '1ppb'): 'pdb_gap reports insertion codes (60, 60A) as sequence gaps',
     ('gap', '', 'wwpdb_like.cif'): 'pdb_gap reports insertion codes (11, 11A) as sequence gaps',
     ('gap', '', '1ejg'): 'pdb_gap compares the alpha carbons of two alternate locations',
     ('fixinsert', '', '1d3z'): 'pdb_fixinsert never restarts between models (model 2 shifts)',
     ('intersect', '', None): 'pdb_intersect keeps one atom per identity (from the last model) '
-                             'in multi-model files; cif_intersect keeps every model',
+                             'in multi-model files; mmcif_intersect keeps every model',
     ('head', '-50', 'nmr_models.cif'): 'pdb_head drops MODEL records, so its atoms lose their model',
 }
 
@@ -152,7 +152,7 @@ def pdb_atoms(text):
     return atoms
 
 
-def cif_atoms(text):
+def mmcif_atoms(text):
     """The same tuples for mmCIF text (auth identifiers)."""
     atoms = []
     for ev in _cif.parse(io.StringIO(text, newline='')):
@@ -199,8 +199,8 @@ def run_pdb_tool(name, argv):
 
 
 def run_cif_tool(name, argv):
-    """Output text of a cif-tools tool."""
-    module = importlib.import_module('ciftools.cif_' + name)
+    """Output text of a mmcif-tools tool."""
+    module = importlib.import_module('mmciftools.mmcif_' + name)
     parsed = module.check_input(argv)
     handle = parsed[0]
     try:
@@ -222,7 +222,7 @@ def cases(text):
     first 50 atoms), 'cif' (the mmCIF file for both). Compared as: 'atoms'
     (PDB output vs mmCIF output), 'text', 'pdb' (both PDB), 'cif' (both mmCIF).
     """
-    chains = list(dict.fromkeys(a[1] for a in cif_atoms(text)))
+    chains = list(dict.fromkeys(a[1] for a in mmcif_atoms(text)))
     same = [
         ('selchain', ['-' + chains[0]]), ('delchain', ['-' + chains[0]]),
         ('selres', ['-1:20']), ('selres', ['-::3']), ('selres', ['-5,10:15']),
@@ -262,39 +262,39 @@ def structures():
 def compare(case, paths):
     """None if both tools agree (or pdb-tools cannot run it), else a short
     description of the difference."""
-    pdb_name, cif_name, pdb_args, cif_args, files, kind = case
-    pdb_files, cif_files = {
-        'one': ([paths['pdb']], [paths['pdb' if cif_name == 'frompdb' else 'cif']]),
+    pdb_name, mmcif_name, pdb_args, mmcif_args, files, kind = case
+    pdb_files, mmcif_files = {
+        'one': ([paths['pdb']], [paths['pdb' if mmcif_name == 'frompdb' else 'cif']]),
         'two': ([paths['pdb']] * 2, [paths['cif']] * 2),
-        'subset': ([paths['pdb'], paths['pdb_head']], [paths['cif'], paths['cif_head']]),
+        'subset': ([paths['pdb'], paths['pdb_head']], [paths['cif'], paths['mmcif_head']]),
         'cif': ([paths['cif']], [paths['cif']]),
     }[files]
     pdb_out = run_pdb_tool(pdb_name, pdb_args + pdb_files)
-    if pdb_out is None:  # beyond a PDB-format limit; cif-tools has none
+    if pdb_out is None:  # beyond a PDB-format limit; mmcif-tools has none
         return None
-    cif_out = run_cif_tool(cif_name, cif_args + cif_files)
+    mmcif_out = run_cif_tool(mmcif_name, mmcif_args + mmcif_files)
     if kind == 'text':
         if pdb_name == 'tofasta':  # the PDB header holds only 4 characters of the entry id
             pdb_out = '\n'.join(line.split('|', 1)[-1] for line in pdb_out.split('\n'))
-            cif_out = '\n'.join(line.split('|', 1)[-1] for line in cif_out.split('\n'))
-        if pdb_out != cif_out:
-            return 'pdb: {!r}\n    cif: {!r}'.format(pdb_out[:300], cif_out[:300])
+            mmcif_out = '\n'.join(line.split('|', 1)[-1] for line in mmcif_out.split('\n'))
+        if pdb_out != mmcif_out:
+            return 'pdb: {!r}\n    cif: {!r}'.format(pdb_out[:300], mmcif_out[:300])
         return None
-    expected = pdb_atoms(pdb_out) if kind in ('atoms', 'pdb') else cif_atoms(pdb_out)
-    got = pdb_atoms(cif_out) if kind == 'pdb' else cif_atoms(cif_out)
+    expected = pdb_atoms(pdb_out) if kind in ('atoms', 'pdb') else mmcif_atoms(pdb_out)
+    got = pdb_atoms(mmcif_out) if kind == 'pdb' else mmcif_atoms(mmcif_out)
     if expected == got:
         return None
     if sorted(expected) == sorted(got):
         return 'same atoms, different order'
     missing = [a for a in expected if a not in set(got)]
     extra = [a for a in got if a not in set(expected)]
-    return '{} atoms from pdb-tools, {} from cif-tools; e.g. only pdb: {} only cif: {}'.format(
+    return '{} atoms from pdb-tools, {} from mmcif-tools; e.g. only pdb: {} only cif: {}'.format(
         len(expected), len(got), missing[:2], extra[:2])
 
 
 def write_files(tmp, entry, text, pdb):
     paths = {key: os.path.join(tmp, entry + suffix) for key, suffix in
-             (('pdb', '.pdb'), ('cif', '.cif'), ('pdb_head', '_head.pdb'), ('cif_head', '_head.cif'))}
+             (('pdb', '.pdb'), ('cif', '.cif'), ('pdb_head', '_head.pdb'), ('mmcif_head', '_head.cif'))}
     with open(paths['pdb'], 'w') as fh:
         fh.write(pdb)
     with open(paths['cif'], 'w', newline='') as fh:
@@ -302,7 +302,7 @@ def write_files(tmp, entry, text, pdb):
     with open(paths['pdb_head'], 'w') as fh:
         atom_lines = [l for l in pdb.splitlines(True) if l.startswith(('ATOM', 'HETATM'))]
         fh.write(''.join(atom_lines[:50]) + 'END\n')
-    with open(paths['cif_head'], 'w', newline='') as fh:
+    with open(paths['mmcif_head'], 'w', newline='') as fh:
         fh.write(run_cif_tool('head', ['-50', paths['cif']]))
     return paths
 
@@ -320,16 +320,16 @@ class TestAgainstPdbTools(unittest.TestCase):
                     continue
                 paths = write_files(tmp, entry, text, pdb)
                 for case in cases(text):
-                    pdb_name, cif_name, _, cif_args = case[:4]
-                    with self.subTest(entry=entry, tool=cif_name, args=cif_args):
+                    pdb_name, mmcif_name, _, mmcif_args = case[:4]
+                    with self.subTest(entry=entry, tool=mmcif_name, args=mmcif_args):
                         difference = compare(case, paths)
-                        if difference and not known(pdb_name, cif_args, entry):
-                            report.append('{} {} {}: {}'.format(entry, cif_name, ' '.join(cif_args),
+                        if difference and not known(pdb_name, mmcif_args, entry):
+                            report.append('{} {} {}: {}'.format(entry, mmcif_name, ' '.join(mmcif_args),
                                                                 difference))
                             self.fail(difference)
         finally:
             shutil.rmtree(tmp)
-            if report and os.environ.get('CIFTOOLS_REPORT'):
+            if report and os.environ.get('MMCIFTOOLS_REPORT'):
                 print('\n' + '\n'.join(report))
 
 

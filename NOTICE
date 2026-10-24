@@ -1,10 +1,11 @@
-cif-tools
-Copyright 2026 the cif-tools authors
+mmcif-tools
+Copyright 2026 the mmcif-tools authors
 
-cif-tools is a port of pdb-tools (https://github.com/haddocking/pdb-tools)
-to the mmCIF format. pdb-tools is Copyright the pdb-tools authors
-(Rodrigues JPGLM, Teixeira JMC, Trellet M, Bonvin AMJJ) and is distributed
-under the Apache License, Version 2.0.
+mmcif-tools is an independent project, inspired by pdb-tools
+(https://github.com/haddocking/pdb-tools). Its command-line conventions, its
+tool set and parts of its help texts follow pdb-tools, which is Copyright the
+pdb-tools authors (Rodrigues JPGLM, Teixeira JMC, Trellet M, Bonvin AMJJ) and
+is distributed under the Apache License, Version 2.0.
 
   Rodrigues JPGLM, Teixeira JMC, Trellet M and Bonvin AMJJ.
   pdb-tools: a swiss army knife for molecular structures.

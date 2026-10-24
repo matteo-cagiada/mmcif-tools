@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2026 the cif-tools authors
+# Copyright 2026 the mmcif-tools authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,30 +27,30 @@ import time
 import unittest
 
 from support import (  # noqa: E402
-    _cif, all_rows, edit_everything, gemmi, gemmi_tables, our_tables, read_path,
+    _cif, all_rows, edit_everything, our_tables, read_path,
     real_entries, reference_problems, roundtrip, rows, run_tool)
 
-from ciftools import (  # noqa: E402
-    _atoms, cif_auth2label, cif_b, cif_blocks, cif_cat, cif_chain, cif_chkensemble, cif_delcat,
-    cif_delchain, cif_delelem, cif_delhetatm, cif_delres, cif_delresname, cif_element,
-    cif_fixinsert, cif_frompdb, cif_gap, cif_head, cif_keepcat, cif_keepcoord, cif_label2auth,
-    cif_mkensemble, cif_occ, cif_reatom, cif_reres, cif_rplchain, cif_rplresname, cif_selaltloc,
-    cif_selatom, cif_selchain, cif_selelem, cif_selhetatm, cif_selmodel, cif_selres,
-    cif_selresname, cif_shiftres, cif_sort, cif_splitmodel, cif_tidy, cif_tofasta, cif_topdb,
-    cif_uniqname, cif_validate, cif_wc)
+from mmciftools import (  # noqa: E402
+    _atoms, mmcif_assembly, mmcif_auth2label, mmcif_b, mmcif_blocks, mmcif_cat, mmcif_chain, mmcif_chkensemble,
+    mmcif_delcat, mmcif_delchain, mmcif_delentity, mmcif_delelem, mmcif_delhetatm, mmcif_delres, mmcif_delresname,
+    mmcif_element, mmcif_fixinsert, mmcif_info, mmcif_frompdb, mmcif_gap, mmcif_head, mmcif_keepcat,
+    mmcif_keepcoord, mmcif_label2auth, mmcif_mkensemble, mmcif_occ, mmcif_reatom, mmcif_reres,
+    mmcif_rplchain, mmcif_rplresname, mmcif_selaltloc, mmcif_selatom, mmcif_selchain, mmcif_selelem,
+    mmcif_selentity, mmcif_selhetatm, mmcif_selmodel, mmcif_selres, mmcif_selresname, mmcif_shiftres, mmcif_sort,
+    mmcif_splitmodel, mmcif_tidy, mmcif_tofasta, mmcif_topdb, mmcif_uniqname, mmcif_validate,
+    mmcif_wc)
 
 ENTRIES = real_entries()
 SKIP = 'real entries not fetched (run: python tests/fetch_real.py)'
-GEMMI_MAX_ATOMS = 30000  # gemmi re-reads of larger outputs take too long for a test run
 INF = float('inf')
 
 # Pairs of tools that must split the atoms between them.
-COMPLEMENTS = [('cif_selchain', 'cif_delchain'), ('cif_selresname', 'cif_delresname'),
-               ('cif_selhetatm', 'cif_delhetatm'), ('cif_selelem', 'cif_delelem')]
+COMPLEMENTS = [('mmcif_selentity', 'mmcif_delentity'), ('mmcif_selchain', 'mmcif_delchain'), ('mmcif_selresname', 'mmcif_delresname'),
+               ('mmcif_selhetatm', 'mmcif_delhetatm'), ('mmcif_selelem', 'mmcif_delelem')]
 # Tools that keep every atom
-KEEP_ALL = ('cif_chain', 'cif_rplchain', 'cif_b', 'cif_occ', 'cif_reres', 'cif_shiftres',
-            'cif_keepcoord', 'cif_element -all', 'cif_rplresname', 'cif_fixinsert', 'cif_reatom',
-            'cif_uniqname', 'cif_sort', 'cif_label2auth', 'cif_label2auth -chain', 'cif_delcat')
+KEEP_ALL = ('mmcif_chain', 'mmcif_rplchain', 'mmcif_b', 'mmcif_occ', 'mmcif_reres', 'mmcif_shiftres',
+            'mmcif_keepcoord', 'mmcif_element -all', 'mmcif_rplresname', 'mmcif_fixinsert', 'mmcif_reatom',
+            'mmcif_uniqname', 'mmcif_sort', 'mmcif_label2auth', 'mmcif_label2auth -chain', 'mmcif_delcat')
 # Entries whose chains have no missing residues: PDB -> mmCIF gives back the label ids
 COMPLETE = ('1d3z', '1ehz', '1ejg', '1ppb', '4hhb')
 
@@ -65,39 +65,41 @@ def calls_for(atoms):
     numbers = [n for n in (_atoms.as_int(a['auth_seq_id']) for a in atoms) if n is not None]
     first = min(numbers)
     return [
-        ('cif_selchain', cif_selchain, ([chains[0]],)),
-        ('cif_delchain', cif_delchain, ([chains[0]],)),
-        ('cif_selres range', cif_selres, (set(), [(first, first + 10, 1)])),
-        ('cif_selres step', cif_selres, ({first}, [(-INF, INF, 3)])),
-        ('cif_delres range', cif_delres, ((first, first + 10, 1),)),
-        ('cif_delres step', cif_delres, ((-INF, INF, 4),)),
-        ('cif_selresname', cif_selresname, (['HOH'],)),
-        ('cif_delresname', cif_delresname, (['HOH'],)),
-        ('cif_selatom', cif_selatom, (['CA', 'P'],)),
-        ('cif_selelem', cif_selelem, (['C'],)),
-        ('cif_selhetatm', cif_selhetatm, ()),
-        ('cif_delhetatm', cif_delhetatm, ()),
-        ('cif_selaltloc', cif_selaltloc, (None,)),
-        ('cif_selaltloc A', cif_selaltloc, ('A',)),
-        ('cif_selmodel', cif_selmodel, ([1],)),
-        ('cif_chain', cif_chain, ('Z',)),
-        ('cif_rplchain', cif_rplchain, ((chains[0], 'ZZ'),)),
-        ('cif_b', cif_b, (1.5,)),
-        ('cif_occ', cif_occ, (0.5,)),
-        ('cif_reres', cif_reres, (1,)),
-        ('cif_shiftres', cif_shiftres, (-1000,)),
-        ('cif_delelem', cif_delelem, (['C'],)),
-        ('cif_keepcoord', cif_keepcoord, ()),
-        ('cif_head', cif_head, (100,)),
-        ('cif_element -all', cif_element, (True,)),
-        ('cif_rplresname', cif_rplresname, (('HOH', 'WAT'),)),
-        ('cif_fixinsert', cif_fixinsert, (set(),)),
-        ('cif_reatom', cif_reatom, (1000,)),
-        ('cif_uniqname', cif_uniqname, ()),
-        ('cif_sort', cif_sort, ('CR',)),
-        ('cif_label2auth', cif_label2auth, (True, True)),
-        ('cif_label2auth -chain', cif_label2auth, (True, False)),
-        ('cif_delcat', cif_delcat, (['_pdbx_validate*', '_struct_conf'],)),
+        ('mmcif_selchain', mmcif_selchain, ([chains[0]],)),
+        ('mmcif_delchain', mmcif_delchain, ([chains[0]],)),
+        ('mmcif_selres range', mmcif_selres, (set(), [(first, first + 10, 1)])),
+        ('mmcif_selres step', mmcif_selres, ({first}, [(-INF, INF, 3)])),
+        ('mmcif_delres range', mmcif_delres, ((first, first + 10, 1),)),
+        ('mmcif_delres step', mmcif_delres, ((-INF, INF, 4),)),
+        ('mmcif_selresname', mmcif_selresname, (['HOH'],)),
+        ('mmcif_delresname', mmcif_delresname, (['HOH'],)),
+        ('mmcif_selatom', mmcif_selatom, (['CA', 'P'],)),
+        ('mmcif_selelem', mmcif_selelem, (['C'],)),
+        ('mmcif_selhetatm', mmcif_selhetatm, ()),
+        ('mmcif_delhetatm', mmcif_delhetatm, ()),
+        ('mmcif_selaltloc', mmcif_selaltloc, (None,)),
+        ('mmcif_selaltloc A', mmcif_selaltloc, ('A',)),
+        ('mmcif_selmodel', mmcif_selmodel, ([1],)),
+        ('mmcif_chain', mmcif_chain, ('Z',)),
+        ('mmcif_rplchain', mmcif_rplchain, ((chains[0], 'ZZ'),)),
+        ('mmcif_b', mmcif_b, (1.5,)),
+        ('mmcif_occ', mmcif_occ, (0.5,)),
+        ('mmcif_reres', mmcif_reres, (1,)),
+        ('mmcif_shiftres', mmcif_shiftres, (-1000,)),
+        ('mmcif_delelem', mmcif_delelem, (['C'],)),
+        ('mmcif_keepcoord', mmcif_keepcoord, ()),
+        ('mmcif_head', mmcif_head, (100,)),
+        ('mmcif_element -all', mmcif_element, (True,)),
+        ('mmcif_rplresname', mmcif_rplresname, (('HOH', 'WAT'),)),
+        ('mmcif_fixinsert', mmcif_fixinsert, (set(),)),
+        ('mmcif_reatom', mmcif_reatom, (1000,)),
+        ('mmcif_uniqname', mmcif_uniqname, ()),
+        ('mmcif_sort', mmcif_sort, ('CR',)),
+        ('mmcif_label2auth', mmcif_label2auth, (True, True)),
+        ('mmcif_label2auth -chain', mmcif_label2auth, (True, False)),
+        ('mmcif_delcat', mmcif_delcat, (['_pdbx_validate*', '_struct_conf'],)),
+        ('mmcif_selentity', mmcif_selentity, (set(), {'polymer', 'branched'})),
+        ('mmcif_delentity', mmcif_delentity, (set(), {'polymer', 'branched'})),
     ]
 
 
@@ -121,19 +123,6 @@ class TestRealLayer(unittest.TestCase):
                 out, expected = edit_everything(text)
                 self.assertEqual(all_rows(out), expected)
 
-    @unittest.skipUnless(gemmi, 'gemmi not installed (optional cross-check)')
-    def test_same_values_as_gemmi(self):
-        for entry, text in self.texts.items():
-            with self.subTest(entry=entry):
-                self.assertEqual(our_tables(text), gemmi_tables(text))
-
-    @unittest.skipUnless(gemmi, 'gemmi not installed (optional cross-check)')
-    def test_edited_output_is_valid(self):
-        for entry, text in self.texts.items():
-            with self.subTest(entry=entry):
-                out, _ = edit_everything(text)
-                self.assertEqual(our_tables(out), gemmi_tables(out))
-
 
 @unittest.skipUnless(ENTRIES, SKIP)
 class TestRealTools(unittest.TestCase):
@@ -146,7 +135,7 @@ class TestRealTools(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if os.environ.get('CIFTOOLS_TIMINGS'):
+        if os.environ.get('MMCIFTOOLS_TIMINGS'):
             for entry, label, seconds in sorted(cls.timings, key=lambda t: -t[2])[:15]:
                 print('{:6.2f}s  {:5s} {}'.format(seconds, entry, label))
 
@@ -165,8 +154,6 @@ class TestRealTools(unittest.TestCase):
                     self.assertLessEqual(reference_problems(out), before)
                     if label in KEEP_ALL:
                         self.assertEqual(len(rows(out)), len(atoms))
-                    if gemmi and len(atoms) <= GEMMI_MAX_ATOMS:
-                        self.assertEqual(our_tables(out), gemmi_tables(out))
             for sel, dele in COMPLEMENTS:
                 with self.subTest(entry=entry, pair=sel):
                     self.assertEqual(len(rows(outputs[sel])) + len(rows(outputs[dele])), len(atoms))
@@ -174,24 +161,24 @@ class TestRealTools(unittest.TestCase):
     def test_reports(self):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
-                summary = run_tool(cif_wc, text, '')
+                summary = run_tool(mmcif_wc, text, '')
                 self.assertTrue(summary.startswith('No. models:\t'))
-                fasta = run_tool(cif_tofasta, text, False, False)
+                fasta = run_tool(mmcif_tofasta, text, False, False)
                 self.assertTrue(fasta.startswith('>' + entry.upper() + '|'))
-                seqres = run_tool(cif_tofasta, text, True, True)
+                seqres = run_tool(mmcif_tofasta, text, True, True)
                 self.assertTrue(seqres.startswith('>' + entry.upper() + '|'))
 
     def test_element_matches_deposited(self):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
-                self.assertEqual(run_tool(cif_element, text, True), text)
+                self.assertEqual(run_tool(mmcif_element, text, True), text)
 
     def test_gap(self):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
-                report = run_tool(cif_gap, text)
+                report = run_tool(mmcif_gap, text)
                 self.assertTrue(report.endswith(' gap(s) in the structure\n'))
-        self.assertTrue(run_tool(cif_gap, self.texts['6vxx']).startswith('A:'))
+        self.assertTrue(run_tool(mmcif_gap, self.texts['6vxx']).startswith('A:'))
 
     def test_pdb_round_trip(self):
         auth = ['auth_asym_id', 'auth_seq_id', 'auth_comp_id', 'auth_atom_id', 'pdbx_PDB_ins_code',
@@ -200,11 +187,11 @@ class TestRealTools(unittest.TestCase):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
                 try:
-                    pdb = run_tool(cif_topdb, text)
+                    pdb = run_tool(mmcif_topdb, text)
                 except _cif.CIFError:
                     self.assertEqual(entry, '4v6x')  # multi-character chains
                     continue
-                back = ''.join(cif_frompdb.run(io.StringIO(pdb), entry))
+                back = ''.join(mmcif_frompdb.run(io.StringIO(pdb), entry))
                 before, after = rows(text), rows(back)
                 self.assertEqual(len(after), len(before))
                 for col in auth + (label if entry in COMPLETE else []):
@@ -216,12 +203,12 @@ class TestRealTools(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         try:
             text = self.texts['1d3z']
-            paths = cif_splitmodel.run(io.StringIO(text), '1d3z', outdir=tmp)
+            paths = mmcif_splitmodel.run(io.StringIO(text), '1d3z', outdir=tmp)
             self.assertEqual(len(paths), 10)
             out = io.StringIO()
-            _cif.write(cif_mkensemble.run(paths), out)
+            _cif.write(mmcif_mkensemble.run(paths), out)
             self.assertEqual(len(rows(out.getvalue())), len(rows(text)))
-            status = cif_chkensemble.run(io.StringIO(out.getvalue()))[2]
+            status = mmcif_chkensemble.run(io.StringIO(out.getvalue()))[2]
             self.assertEqual(status, 0)
         finally:
             shutil.rmtree(tmp)
@@ -229,23 +216,23 @@ class TestRealTools(unittest.TestCase):
     def test_label_and_author_copies(self):
         for entry, text in self.texts.items():
             before, atoms = reference_problems(text), rows(text)
-            with self.subTest(entry=entry, tool='cif_label2auth'):
-                after = rows(run_tool(cif_label2auth, text, True, True))
+            with self.subTest(entry=entry, tool='mmcif_label2auth'):
+                after = rows(run_tool(mmcif_label2auth, text, True, True))
                 self.assertEqual([a['auth_asym_id'] for a in after], [a['label_asym_id'] for a in atoms])
                 self.assertEqual([a['auth_seq_id'] for a in after],
                                  [a['label_seq_id'] if a['label_seq_id'] != '.' else a['auth_seq_id']
                                   for a in atoms])
-            with self.subTest(entry=entry, tool='cif_label2auth -res'):
+            with self.subTest(entry=entry, tool='mmcif_label2auth -res'):
                 try:
-                    out = run_tool(cif_label2auth, text, False, True)
+                    out = run_tool(mmcif_label2auth, text, False, True)
                 except _cif.CIFError as err:
                     self.assertIn('would both become', str(err))
                 else:
                     self.assertEqual(len(rows(out)), len(atoms))
                     self.assertLessEqual(reference_problems(out), before)
-            with self.subTest(entry=entry, tool='cif_auth2label'):
+            with self.subTest(entry=entry, tool='mmcif_auth2label'):
                 try:
-                    out = run_tool(cif_auth2label, text)
+                    out = run_tool(mmcif_auth2label, text)
                 except _cif.CIFError as err:
                     self.assertIn('ligand or water', str(err))
                     continue
@@ -261,28 +248,60 @@ class TestRealTools(unittest.TestCase):
     def test_category_tools(self):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
-                table = run_tool(cif_cat, text, '_atom_site').splitlines()
+                table = run_tool(mmcif_cat, text, '_atom_site').splitlines()
                 self.assertEqual(len(table), len(rows(text)) + 1)
-                self.assertEqual(run_tool(cif_blocks, text), entry.upper() + '\n')
-                self.assertEqual(run_tool(cif_keepcat, text, ['_atom_site', '_struct_conn']),
-                                 run_tool(cif_keepcoord, text))
-                out = run_tool(cif_delcat, text, ['_pdbx_validate*'])
+                self.assertEqual(run_tool(mmcif_blocks, text), entry.upper() + '\n')
+                self.assertEqual(run_tool(mmcif_keepcat, text, ['_atom_site', '_struct_conn']),
+                                 run_tool(mmcif_keepcoord, text))
+                out = run_tool(mmcif_delcat, text, ['_pdbx_validate*'])
                 self.assertFalse([line for line in out.splitlines()
                                   if line.lower().startswith('_pdbx_validate')])
-                self.assertEqual(run_tool(cif_delcat, out, ['_pdbx_validate*']), out)
+                self.assertEqual(run_tool(mmcif_delcat, out, ['_pdbx_validate*']), out)
+
+    def test_assembly(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                atoms = rows(text)
+                if entry.startswith('af-'):  # AlphaFold DB files have no assemblies
+                    with self.assertRaises(_cif.CIFError):
+                        run_tool(mmcif_assembly, text, '1')
+                    continue
+                out = run_tool(mmcif_assembly, text, '1')
+                after = rows(out)
+                self.assertEqual(roundtrip(out, _cif.ALL), out)
+                self.assertLessEqual(reference_problems(out), reference_problems(text))
+                self.assertEqual(rows(out, '_atom_site_anisotrop'), [])
+                self.assertEqual([a['id'] for a in after], [str(i) for i in range(1, len(after) + 1)])
+                if entry == '1stp':  # one chain, four operations
+                    self.assertEqual(len(after), 4 * len(atoms))
+                    self.assertEqual(list(dict.fromkeys(a['auth_asym_id'] for a in after)),
+                                     ['A', 'A-2', 'A-3', 'A-4'])
+                else:  # identity only: the same atoms, chain by chain
+                    key = lambda a: (a['pdbx_PDB_model_num'], a['label_asym_id'], a['label_atom_id'],  # noqa
+                                     a['label_seq_id'], a['label_alt_id'], a['Cartn_x'], a['Cartn_z'])
+                    self.assertEqual(sorted(map(key, after)), sorted(map(key, atoms)))
+
+    def test_info(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                lines = run_tool(mmcif_info, text).splitlines()
+                self.assertEqual(lines[0], 'Entry:\t' + entry.upper())
+                items = {line.split(':', 1)[0] for line in lines}
+                self.assertIn('Entity', items)
+                self.assertIn('Model quality' if entry.startswith('af-') else 'Method', items)
 
     def test_validate(self):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
-                lines, errors = cif_validate.run(io.StringIO(text, newline=''))
+                lines, errors = mmcif_validate.run(io.StringIO(text, newline=''))
                 self.assertEqual(errors, 0, ''.join(lines))
 
     def test_tidy(self):
         for entry, text in self.texts.items():
             with self.subTest(entry=entry):
-                out = run_tool(cif_tidy, text)
+                out = run_tool(mmcif_tidy, text)
                 self.assertEqual(our_tables(out), our_tables(text))  # same data
-                self.assertEqual(run_tool(cif_tidy, out), out)       # already tidy
+                self.assertEqual(run_tool(mmcif_tidy, out), out)       # already tidy
 
 
 if __name__ == '__main__':

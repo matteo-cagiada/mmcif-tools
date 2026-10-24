@@ -1,0 +1,4 @@
+include CHANGELOG.md CITATION.cff
+recursive-include docs *.md
+include tests/*.py tests/real_set.txt
+recursive-include tests/data *.cif

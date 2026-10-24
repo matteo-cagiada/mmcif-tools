@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use mmcif-tools, please cite it as below."
+title: "mmcif-tools: command-line tools for mmCIF files"
+type: software
+version: 0.1.0
+date-released: "2026-10-24"
+license: Apache-2.0
+repository-code: "https://github.com/matteo-cagiada/mmcif-tools"
+abstract: >-
+  Small, single-purpose command-line tools to select, edit, convert and inspect
+  macromolecular structures in the mmCIF (PDBx/mmCIF) format, chained with Unix
+  pipes. Standard library Python only. Inspired by pdb-tools.
+keywords:
+  - mmCIF
+  - PDBx
+  - Protein Data Bank
+  - structural biology
+  - command line
+authors:
+  - family-names: Cagiada
+    given-names: Matteo
+references:
+  - type: article
+    title: "pdb-tools: a swiss army knife for molecular structures"
+    authors:
+      - family-names: Rodrigues
+        given-names: João P. G. L. M.
+      - family-names: Teixeira
+        given-names: João M. C.
+      - family-names: Trellet
+        given-names: Mikaël
+      - family-names: Bonvin
+        given-names: Alexandre M. J. J.
+    journal: F1000Research
+    volume: 7
+    start: 1961
+    year: 2018
+    doi: 10.12688/f1000research.17456.1

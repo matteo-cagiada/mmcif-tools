@@ -1,74 +1,101 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cif-tools"
-version = "0.0.1"
-description = "A swiss army knife for manipulating and editing mmCIF files, in the spirit of pdb-tools."
+name = "mmcif-tools"
+dynamic = ["version"]
+description = "Small, pipeable command-line tools to select, edit and inspect mmCIF files (standard library only)."
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Matteo Cagiada" }]
 requires-python = ">=3.9"
 dependencies = []
+keywords = ["mmCIF", "PDBx", "PDB", "protein structure", "structural biology", "command line"]
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 
+[project.urls]
+Homepage = "https://github.com/matteo-cagiada/mmcif-tools"
+Documentation = "https://github.com/matteo-cagiada/mmcif-tools/blob/main/docs/tools.md"
+Changelog = "https://github.com/matteo-cagiada/mmcif-tools/blob/main/CHANGELOG.md"
+Issues = "https://github.com/matteo-cagiada/mmcif-tools/issues"
+
 [project.optional-dependencies]
-test = ["gemmi", "pdb-tools"]
+test = ["pdb-tools"]
 
 [project.scripts]
-cif_auth2label = "ciftools.cif_auth2label:main"
-cif_b = "ciftools.cif_b:main"
-cif_blocks = "ciftools.cif_blocks:main"
-cif_cat = "ciftools.cif_cat:main"
-cif_chain = "ciftools.cif_chain:main"
-cif_chkensemble = "ciftools.cif_chkensemble:main"
-cif_delcat = "ciftools.cif_delcat:main"
-cif_delchain = "ciftools.cif_delchain:main"
-cif_delelem = "ciftools.cif_delelem:main"
-cif_delhetatm = "ciftools.cif_delhetatm:main"
-cif_delinsertion = "ciftools.cif_delinsertion:main"
-cif_delres = "ciftools.cif_delres:main"
-cif_delresname = "ciftools.cif_delresname:main"
-cif_element = "ciftools.cif_element:main"
-cif_fetch = "ciftools.cif_fetch:main"
-cif_fixinsert = "ciftools.cif_fixinsert:main"
-cif_frompdb = "ciftools.cif_frompdb:main"
-cif_gap = "ciftools.cif_gap:main"
-cif_head = "ciftools.cif_head:main"
-cif_intersect = "ciftools.cif_intersect:main"
-cif_keepcat = "ciftools.cif_keepcat:main"
-cif_keepcoord = "ciftools.cif_keepcoord:main"
-cif_label2auth = "ciftools.cif_label2auth:main"
-cif_merge = "ciftools.cif_merge:main"
-cif_mkensemble = "ciftools.cif_mkensemble:main"
-cif_occ = "ciftools.cif_occ:main"
-cif_reatom = "ciftools.cif_reatom:main"
-cif_reres = "ciftools.cif_reres:main"
-cif_rplchain = "ciftools.cif_rplchain:main"
-cif_rplresname = "ciftools.cif_rplresname:main"
-cif_selaltloc = "ciftools.cif_selaltloc:main"
-cif_selatom = "ciftools.cif_selatom:main"
-cif_selchain = "ciftools.cif_selchain:main"
-cif_selelem = "ciftools.cif_selelem:main"
-cif_selhetatm = "ciftools.cif_selhetatm:main"
-cif_selmodel = "ciftools.cif_selmodel:main"
-cif_selres = "ciftools.cif_selres:main"
-cif_selresname = "ciftools.cif_selresname:main"
-cif_shiftres = "ciftools.cif_shiftres:main"
-cif_sort = "ciftools.cif_sort:main"
-cif_splitchain = "ciftools.cif_splitchain:main"
-cif_splitmodel = "ciftools.cif_splitmodel:main"
-cif_tidy = "ciftools.cif_tidy:main"
-cif_tofasta = "ciftools.cif_tofasta:main"
-cif_topdb = "ciftools.cif_topdb:main"
-cif_uniqname = "ciftools.cif_uniqname:main"
-cif_validate = "ciftools.cif_validate:main"
-cif_wc = "ciftools.cif_wc:main"
+mmcif_assembly = "mmciftools.mmcif_assembly:main"
+mmcif_auth2label = "mmciftools.mmcif_auth2label:main"
+mmcif_b = "mmciftools.mmcif_b:main"
+mmcif_blocks = "mmciftools.mmcif_blocks:main"
+mmcif_cat = "mmciftools.mmcif_cat:main"
+mmcif_chain = "mmciftools.mmcif_chain:main"
+mmcif_chkensemble = "mmciftools.mmcif_chkensemble:main"
+mmcif_delcat = "mmciftools.mmcif_delcat:main"
+mmcif_delchain = "mmciftools.mmcif_delchain:main"
+mmcif_delelem = "mmciftools.mmcif_delelem:main"
+mmcif_delentity = "mmciftools.mmcif_delentity:main"
+mmcif_delhetatm = "mmciftools.mmcif_delhetatm:main"
+mmcif_delinsertion = "mmciftools.mmcif_delinsertion:main"
+mmcif_delres = "mmciftools.mmcif_delres:main"
+mmcif_delresname = "mmciftools.mmcif_delresname:main"
+mmcif_element = "mmciftools.mmcif_element:main"
+mmcif_fetch = "mmciftools.mmcif_fetch:main"
+mmcif_fixinsert = "mmciftools.mmcif_fixinsert:main"
+mmcif_frompdb = "mmciftools.mmcif_frompdb:main"
+mmcif_gap = "mmciftools.mmcif_gap:main"
+mmcif_head = "mmciftools.mmcif_head:main"
+mmcif_info = "mmciftools.mmcif_info:main"
+mmcif_intersect = "mmciftools.mmcif_intersect:main"
+mmcif_keepcat = "mmciftools.mmcif_keepcat:main"
+mmcif_keepcoord = "mmciftools.mmcif_keepcoord:main"
+mmcif_label2auth = "mmciftools.mmcif_label2auth:main"
+mmcif_merge = "mmciftools.mmcif_merge:main"
+mmcif_mkensemble = "mmciftools.mmcif_mkensemble:main"
+mmcif_occ = "mmciftools.mmcif_occ:main"
+mmcif_reatom = "mmciftools.mmcif_reatom:main"
+mmcif_reres = "mmciftools.mmcif_reres:main"
+mmcif_rplchain = "mmciftools.mmcif_rplchain:main"
+mmcif_rplresname = "mmciftools.mmcif_rplresname:main"
+mmcif_selaltloc = "mmciftools.mmcif_selaltloc:main"
+mmcif_selatom = "mmciftools.mmcif_selatom:main"
+mmcif_selchain = "mmciftools.mmcif_selchain:main"
+mmcif_selelem = "mmciftools.mmcif_selelem:main"
+mmcif_selentity = "mmciftools.mmcif_selentity:main"
+mmcif_selhetatm = "mmciftools.mmcif_selhetatm:main"
+mmcif_selmodel = "mmciftools.mmcif_selmodel:main"
+mmcif_selres = "mmciftools.mmcif_selres:main"
+mmcif_selresname = "mmciftools.mmcif_selresname:main"
+mmcif_shiftres = "mmciftools.mmcif_shiftres:main"
+mmcif_sort = "mmciftools.mmcif_sort:main"
+mmcif_splitchain = "mmciftools.mmcif_splitchain:main"
+mmcif_splitmodel = "mmciftools.mmcif_splitmodel:main"
+mmcif_tidy = "mmciftools.mmcif_tidy:main"
+mmcif_tofasta = "mmciftools.mmcif_tofasta:main"
+mmcif_topdb = "mmciftools.mmcif_topdb:main"
+mmcif_uniqname = "mmciftools.mmcif_uniqname:main"
+mmcif_validate = "mmciftools.mmcif_validate:main"
+mmcif_wc = "mmciftools.mmcif_wc:main"
 
 [tool.setuptools]
-packages = ["ciftools"]
+packages = ["mmciftools"]
+
+[tool.setuptools.dynamic]
+version = { attr = "mmciftools.__version__" }

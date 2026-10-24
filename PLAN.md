@@ -1,14 +1,16 @@
-# cif-tools: porting pdb-tools to mmCIF
+# mmcif-tools: plan and design record
 
-Draft plan, 2026-10-23.
+Started 2026-10-23 as "cif-tools", a port of pdb-tools; renamed mmcif-tools (commands `mmcif_*`, package
+`mmciftools`) and made an independent project in phase 4 (§7, decisions 13-14). Sections 1-11 are kept as
+written at the time, with the names updated.
 
 ## 1. Goal
 
-Rebuild [pdb-tools](https://www.bonvinlab.org/pdb-tools/) (v2.6.1, 48 scripts, ~9k lines) as **cif-tools**: the
+Rebuild [pdb-tools](https://www.bonvinlab.org/pdb-tools/) (v2.6.1, 48 scripts, ~9k lines) as **mmcif-tools**: the
 same small, single-purpose, pipeable command-line tools, but reading and writing mmCIF instead of PDB.
 
 ```
-cif_selchain -A,B 1abc.cif | cif_delhetatm | cif_reres -1 | cif_tidy > clean.cif
+mmcif_selchain -A,B 1abc.cif | mmcif_delhetatm | mmcif_reres -1 | mmcif_tidy > clean.cif
 ```
 
 What we keep from pdb-tools:
@@ -24,7 +26,7 @@ What we keep from pdb-tools:
 In pdb-tools every script works on fixed columns (`line[21]` is the chain, and so on). mmCIF has no fixed columns,
 so that model doesn't carry over:
 
-| Topic | PDB (pdb-tools) | mmCIF (cif-tools) |
+| Topic | PDB (pdb-tools) | mmCIF (mmcif-tools) |
 |---|---|---|
 | Atom record layout | Fixed columns | `loop_` of `_atom_site.*`; column order comes from the header, whitespace-separated tokens, with quoting (`'...'`, `"..."`, `;...;`) |
 | Identifiers | One chain/resnum | Two sets: `auth_*` (author, what PDB shows) and `label_*` (canonical); `label_seq_id` is `.` for HETATM/waters |
@@ -41,7 +43,7 @@ So the main engineering work is **one small, shared mmCIF streaming layer**. Aft
 
 ## 3. Architecture
 
-### 3.1 Shared library `ciftools/_cif.py` (stdlib only)
+### 3.1 Shared library `mmciftools/_cif.py` (stdlib only)
 
 pdb-tools copies its helpers into every script. We share one module instead, because the CIF tokenizer is too
 complex to duplicate 48 times.
@@ -65,12 +67,12 @@ complex to duplicate 48 times.
    by atom id, `_struct_conn` by partner atoms). Optionally, prune `_struct_asym`/`_entity`/`_pdbx_poly_seq_scheme`.
    This is opt-in (`--prune`) in v1, so that by default we never silently rewrite metadata.
 
-~~Optional speed path: if `gemmi` is installed, a few heavy tools (`cif_tidy`, `cif_validate`) may use it.~~
+~~Optional speed path: if `gemmi` is installed, a few heavy tools (`mmcif_tidy`, `mmcif_validate`) may use it.~~
 Dropped in phase 3 (§7, decision 10): every tool is stdlib only.
 
 ### 3.2 Packaging
 
-- `pyproject.toml`, package `ciftools`, console entry points `cif_*` (pdb-tools uses the same mechanism).
+- `pyproject.toml`, package `mmciftools`, console entry points `mmcif_*` (pdb-tools uses the same mechanism).
 - Python ≥ 3.9, no runtime deps and no gemmi extra: gemmi is not part of the release (§7, decision 12).
 - Licence: pdb-tools is Apache-2.0, so we can derive from it if we keep the licence and NOTICE/attribution to the
   Bonvin lab authors. (Check if we want to coordinate with them upstream, see §7.)
@@ -85,7 +87,7 @@ Dropped in phase 3 (§7, decision 10): every tool is stdlib only.
 - **Cross-check harness**: for each ported tool, run `cif_X` on the CIF and `pdb_X` on the PDB version of the same
   entry, then compare atom sets/coordinates with gemmi (as a test-only dependency). This automatically catches
   semantic drift from the original tools.
-- Round-trip test: a tool that does nothing (`cif_tidy --noop`) must reproduce the input byte-for-byte.
+- Round-trip test: a tool that does nothing (`mmcif_tidy --noop`) must reproduce the input byte-for-byte.
 - Validity: every output must parse with gemmi, and optionally with the PDBx dictionary check.
 
 ## 4. Tool mapping (all 48 pdb-tools)
@@ -94,87 +96,88 @@ Dropped in phase 3 (§7, decision 10): every tool is stdlib only.
 🆕 new CIF-specific tool.
 
 ### Editing columns
-| pdb-tools | cif-tools | Notes |
+| pdb-tools | mmcif-tools | Notes |
 |---|---|---|
-| pdb_b | ✅ cif_b | `B_iso_or_equiv` |
-| pdb_occ | ✅ cif_occ | `occupancy` |
-| pdb_chain | ✅ cif_chain | Sets the chain for all atoms. Chain ids are no longer limited to 1 char |
-| pdb_rplchain | ✅ cif_rplchain | `-A:B` syntax; multi-char ids allowed |
-| pdb_rplresname | ✅ cif_rplresname | `auth_comp_id` + `label_comp_id` (comp id is the same in both) |
-| pdb_element | ✅ cif_element | `type_symbol`; reuse pdb-tools' atom-name → element heuristics |
-| pdb_reatom | ✅ cif_reatom | `id`; must also renumber references in `_atom_site_anisotrop` / `_struct_conn` |
-| pdb_reres | 🔁 cif_reres | Renumbers `auth_seq_id` by default. `label_seq_id` is canonical, so renumbering it needs `--label` and a warning |
-| pdb_shiftres | 🔁 cif_shiftres | Same caveat as reres |
-| pdb_uniqname | ✅ cif_uniqname | HETATM atom names |
-| pdb_delinsertion | ✅ cif_delinsertion | `pdbx_PDB_ins_code` → `?`, then shift numbering |
-| pdb_fixinsert | ✅ cif_fixinsert | Same |
+| pdb_b | ✅ mmcif_b | `B_iso_or_equiv` |
+| pdb_occ | ✅ mmcif_occ | `occupancy` |
+| pdb_chain | ✅ mmcif_chain | Sets the chain for all atoms. Chain ids are no longer limited to 1 char |
+| pdb_rplchain | ✅ mmcif_rplchain | `-A:B` syntax; multi-char ids allowed |
+| pdb_rplresname | ✅ mmcif_rplresname | `auth_comp_id` + `label_comp_id` (comp id is the same in both) |
+| pdb_element | ✅ mmcif_element | `type_symbol`; reuse pdb-tools' atom-name → element heuristics |
+| pdb_reatom | ✅ mmcif_reatom | `id`; must also renumber references in `_atom_site_anisotrop` / `_struct_conn` |
+| pdb_reres | 🔁 mmcif_reres | Renumbers `auth_seq_id` by default. `label_seq_id` is canonical, so renumbering it needs `--label` and a warning |
+| pdb_shiftres | 🔁 mmcif_shiftres | Same caveat as reres |
+| pdb_uniqname | ✅ mmcif_uniqname | HETATM atom names |
+| pdb_delinsertion | ✅ mmcif_delinsertion | `pdbx_PDB_ins_code` → `?`, then shift numbering |
+| pdb_fixinsert | ✅ mmcif_fixinsert | Same |
 | pdb_seg | ❌ | No segment id in mmCIF; `label_asym_id` names each molecule |
-| pdb_chainxseg / pdb_segxchain | ❌ (was `cif_swapids`) | Replaced by 🆕 `cif_label2auth` / `cif_auth2label`, which copy one scheme onto the other (§7, decision 7) |
-| pdb_chainbows | ❌ | No TER records in mmCIF. `cif_frompdb` splits molecules at TER and names blank chains; `cif_label2auth -chain` gives each molecule its own chain (§7, decision 6) |
+| pdb_chainxseg / pdb_segxchain | ❌ (was `mmcif_swapids`) | Replaced by 🆕 `mmcif_label2auth` / `mmcif_auth2label`, which copy one scheme onto the other (§7, decision 7) |
+| pdb_chainbows | ❌ | No TER records in mmCIF. `mmcif_frompdb` splits molecules at TER and names blank chains; `mmcif_label2auth -chain` gives each molecule its own chain (§7, decision 6) |
 
 ### Selecting / deleting
-| pdb-tools | cif-tools | Notes |
+| pdb-tools | mmcif-tools | Notes |
 |---|---|---|
-| pdb_selchain / pdb_delchain | ✅ cif_selchain / cif_delchain | Comma-separated, multi-char ids |
-| pdb_selres / pdb_delres | ✅ cif_selres / cif_delres | Range syntax `1:10,20:`; uses the chosen scheme |
+| pdb_selchain / pdb_delchain | ✅ mmcif_selchain / mmcif_delchain | Comma-separated, multi-char ids |
+| pdb_selres / pdb_delres | ✅ mmcif_selres / mmcif_delres | Range syntax `1:10,20:`; uses the chosen scheme |
 | pdb_selresname / pdb_delresname | ✅ | `comp_id` |
-| pdb_selatom | ✅ cif_selatom | `auth_atom_id` / `label_atom_id` |
+| pdb_selatom | ✅ mmcif_selatom | `auth_atom_id` / `label_atom_id` |
 | pdb_selelem / pdb_delelem | ✅ | `type_symbol` |
 | pdb_selhetatm / pdb_delhetatm | ✅ | `group_PDB` column |
-| pdb_selaltloc | ✅ cif_selaltloc | `label_alt_id`; same "highest occupancy" default |
-| pdb_selmodel | ✅ cif_selmodel | `pdbx_PDB_model_num` |
-| pdb_selseg | ❌ | No segment id (see `cif_selchain --label`) |
-| pdb_keepcoord | 🔁 cif_keepcoord | Keep only `_atom_site` (+ optional `_atom_site_anisotrop`, `_cell`, `_symmetry`), drop all other categories |
-| pdb_head | ✅ cif_head | First N atom rows, with metadata kept |
+| pdb_selaltloc | ✅ mmcif_selaltloc | `label_alt_id`; same "highest occupancy" default |
+| pdb_selmodel | ✅ mmcif_selmodel | `pdbx_PDB_model_num` |
+| pdb_selseg | ❌ | No segment id (see `mmcif_selchain --label`) |
+| pdb_keepcoord | 🔁 mmcif_keepcoord | Keep only `_atom_site` (+ optional `_atom_site_anisotrop`, `_cell`, `_symmetry`), drop all other categories |
+| pdb_head | ✅ mmcif_head | First N atom rows, with metadata kept |
 
 ### Splitting / merging
-| pdb-tools | cif-tools | Notes |
+| pdb-tools | mmcif-tools | Notes |
 |---|---|---|
 | pdb_splitchain / pdb_splitmodel | ✅ | Each output gets its own `data_` block name (`<id>_A`) |
 | pdb_splitseg | ❌ | |
-| pdb_merge | 🔁 cif_merge | Harder than in PDB: must reconcile duplicate atom `id`s, chain clashes, and `_entity`/`_struct_asym` rows. v1 merges `_atom_site` plus minimal metadata, renumbers atoms, and warns on chain clashes |
-| pdb_mkensemble | ✅ cif_mkensemble | Set `pdbx_PDB_model_num` per input |
-| pdb_chkensemble | ✅ cif_chkensemble | |
-| pdb_intersect | ✅ cif_intersect | Atom identity key = (model, chain, resnum, icode, resname, atom, altloc) |
+| pdb_merge | 🔁 mmcif_merge | Harder than in PDB: must reconcile duplicate atom `id`s, chain clashes, and `_entity`/`_struct_asym` rows. v1 merges `_atom_site` plus minimal metadata, renumbers atoms, and warns on chain clashes |
+| pdb_mkensemble | ✅ mmcif_mkensemble | Set `pdbx_PDB_model_num` per input |
+| pdb_chkensemble | ✅ mmcif_chkensemble | |
+| pdb_intersect | ✅ mmcif_intersect | Atom identity key = (model, chain, resnum, icode, resname, atom, altloc) |
 
 ### Inspecting / validating / formatting
-| pdb-tools | cif-tools | Notes |
+| pdb-tools | mmcif-tools | Notes |
 |---|---|---|
-| pdb_wc | ✅ cif_wc | Plus a count of entities / categories |
-| pdb_gap | ✅ cif_gap | Can also use `label_seq_id` jumps, which is more reliable than distances |
-| pdb_tofasta | 🔁 cif_tofasta | Option to read the true sequence from `_entity_poly(_seq)` (includes unmodelled residues) instead of atoms. This is a real improvement over PDB |
-| pdb_sort | ✅ cif_sort | Sort `_atom_site` rows by model/chain/resnum; re-sort the anisotrop loop to match |
-| pdb_tidy | 🔁 cif_tidy | Normalise: column alignment, quoting, `#` category separators, `?`/`.` usage, sequential ids |
-| pdb_validate | 🔁 cif_validate | Syntax check (tokenizer), required `_atom_site` columns, value types, and optionally the PDBx/mmCIF dictionary via gemmi |
+| pdb_wc | ✅ mmcif_wc | Plus a count of entities / categories |
+| pdb_gap | ✅ mmcif_gap | Can also use `label_seq_id` jumps, which is more reliable than distances |
+| pdb_tofasta | 🔁 mmcif_tofasta | Option to read the true sequence from `_entity_poly(_seq)` (includes unmodelled residues) instead of atoms. This is a real improvement over PDB |
+| pdb_sort | ✅ mmcif_sort | Sort `_atom_site` rows by model/chain/resnum; re-sort the anisotrop loop to match |
+| pdb_tidy | 🔁 mmcif_tidy | Normalise: column alignment, quoting, `#` category separators, `?`/`.` usage, sequential ids |
+| pdb_validate | 🔁 mmcif_validate | Syntax check (tokenizer), required `_atom_site` columns, value types, and optionally the PDBx/mmCIF dictionary via gemmi |
 
 ### Fetching / conversion
-| pdb-tools | cif-tools | Notes |
+| pdb-tools | mmcif-tools | Notes |
 |---|---|---|
-| pdb_fetch | ✅ cif_fetch | RCSB / PDBe `.cif(.gz)`, plus `-biounit` (assembly CIFs), plus AlphaFold DB (`AF-<uniprot>`) |
-| pdb_tocif | ✅ cif_frompdb | Rewrite pdb-tools' "rudimentary" converter to output both auth and label ids |
-| pdb_fromcif | ✅ cif_topdb | Fails with a clear message when the structure doesn't fit PDB (>99,999 atoms, multi-char chains) unless `--force` |
+| pdb_fetch | ✅ mmcif_fetch | RCSB / PDBe `.cif(.gz)`, plus `-biounit` (assembly CIFs), plus AlphaFold DB (`AF-<uniprot>`) |
+| pdb_tocif | ✅ mmcif_frompdb | Rewrite pdb-tools' "rudimentary" converter to output both auth and label ids |
+| pdb_fromcif | ✅ mmcif_topdb | Fails with a clear message when the structure doesn't fit PDB (>99,999 atoms, multi-char chains) unless `--force` |
 
 ### New CIF-specific tools (🆕, phase 3)
-- `cif_cat -<category>`: print one category as TSV (the CIF version of `grep ATOM`).
-- `cif_delcat` / `cif_keepcat`: drop/keep whole categories.
-- `cif_blocks`: list or select `data_` blocks.
-- `cif_label2auth` / `cif_auth2label`: copy one identifier scheme onto the other.
-- `cif_prune`: re-synchronise `_entity`/`_struct_asym`/`_pdbx_poly_seq_scheme` after heavy editing. **Postponed
+- `mmcif_cat -<category>`: print one category as TSV (the CIF version of `grep ATOM`).
+- `mmcif_delcat` / `mmcif_keepcat`: drop/keep whole categories.
+- `mmcif_blocks`: list or select `data_` blocks.
+- `mmcif_label2auth` / `mmcif_auth2label`: copy one identifier scheme onto the other.
+- `mmcif_prune`: re-synchronise `_entity`/`_struct_asym`/`_pdbx_poly_seq_scheme` after heavy editing. **Postponed
   until after the first release** (§7, decision 9).
 
-**Totals:** 48 originals → 42 ported (41 tools plus the `cif_delinsertion` alias), 6 dropped (the three segment
+**Totals:** 48 originals → 42 ported (41 tools plus the `mmcif_delinsertion` alias), 6 dropped (the three segment
 tools, chainbows and the two chain/segment swaps), plus 6 new: 48 tools.
 
 ## 5. Phases
 
 | Phase | Scope | Done when |
 |---|---|---|
-| **0. Foundations** | Repo, `pyproject`, CI, fixture set, `_cif.py` tokenizer/reader/writer, round-trip test | `cat x.cif \| python -m ciftools._cif` reproduces input byte-for-byte on all fixtures |
+| **0. Foundations** | Repo, `pyproject`, CI, fixture set, `_cif.py` tokenizer/reader/writer, round-trip test | `cat x.cif \| python -m mmciftools._cif` reproduces input byte-for-byte on all fixtures |
 | **1. Core 20** | The tools we actually use daily: selchain, delchain, selres, delres, selresname, delresname, selatom, selelem, selhetatm, delhetatm, selaltloc, selmodel, chain, rplchain, b, occ, reres, shiftres, wc, tofasta, fetch | Each passes unit tests + cross-check vs pdb-tools |
 | **2. The rest** | Remaining ports: split/merge/ensemble, sort, tidy, validate, gap, element, reatom, uniqname, insertion tools, intersect, keepcoord, head, conversions | All ported tools in §4 implemented |
-| **3. CIF extras** | 🆕 tools (without `cif_prune`), the `cif_frompdb` TER fix, leftovers from phases 1–2 | Done (§11) |
-| **4. Release** | Docs site (same style as the pdb-tools page: one entry per tool with `--help` text), PyPI, conda-forge, migration table pdb_X → cif_X; naming, upstream and pipeline questions (§7); remove gemmi from the tests, CI and the `[test]` extra, and move the gemmi check to a separate script (§7, decision 12) | `pip install cif-tools` works, with no gemmi anywhere in the package or its tests |
-| **5. After the first release** | `cif_prune` (§7, decision 9) | |
+| **3. CIF extras** | 🆕 tools (without `mmcif_prune`), the `mmcif_frompdb` TER fix, leftovers from phases 1–2 | Done (§11) |
+| **4. Test release 0.1.0** | Rename to mmcif-tools; gemmi out of the package and tests (separate script); tool reference, CHANGELOG, CITATION; packaging metadata; CI up to Python 3.15; entity, assembly and info tools | Done (§12) |
+| **5. Public release** | Feedback from testers; user guide (GitHub Pages); PyPI (TestPyPI first, trusted publishing on a tag), then conda-forge | `pip install mmcif-tools` works |
+| **6. After the first release** | `mmcif_prune` (§7, decision 9) | |
 
 Before phase 1, one useful step: **grep our own lab scripts/pipelines for `pdb_` calls** to rank the tools by how
 much we use them, and adjust the "Core 20" list.
@@ -185,9 +188,9 @@ much we use them, and adjust the "Core 20" list.
   `[`, `;`, or reserved words like `data_`, `loop_`). Mitigation: a fuzz test that writes random values and
   re-parses them.
 - **Silent metadata inconsistency** after edits (e.g. deleting chain B but `_struct_asym` still lists it).
-  Mitigation: document it, `--prune`, `cif_validate` warns.
+  Mitigation: document it, `--prune`, `mmcif_validate` warns.
 - **auth vs label confusion** for users. Mitigation: a global default, a `-h` note in every tool, and an
-  `CIFTOOLS_SCHEME` env var.
+  `MMCIFTOOLS_SCHEME` env var.
 - **Performance** of pure-Python tokenizing on huge assemblies (ribosomes, viral capsids). Mitigation: only fully
   tokenize the categories a tool needs, and benchmark early on a ~1M-atom file.
 - **Non-wwPDB CIFs** (output of AlphaFold, Rosetta, ChimeraX, PyMOL) with missing or extra columns. Mitigation:
@@ -197,63 +200,81 @@ much we use them, and adjust the "Core 20" list.
 
 Decided (2026-10-23):
 
-1. **Default identifier scheme: `auth_*`.** Switch per call with `--label`, or globally with `CIFTOOLS_SCHEME=label`.
+1. **Default identifier scheme: `auth_*`.** Switch per call with `--label`, or globally with `MMCIFTOOLS_SCHEME=label`.
 2. **Core is strictly stdlib.** gemmi is used only by the tests (cross-checks); revised by decision 12: not as
    an optional extra, and not in the released test suite.
 3. **Edits change one identifier scheme, never both.** One author chain usually spans several label chains
    (protein, ligands, waters), and `label_seq_id` is tied to the deposited sequence, so editing both at once would
    merge separate instances or break the sequence link. Copying one scheme onto the other is left to the planned
-   `cif_label2auth` / `cif_auth2label` tools.
-4. **Exception for names (phase 2):** `cif_rplresname` and `cif_uniqname` change *both* name columns (residue
+   `mmcif_label2auth` / `mmcif_auth2label` tools.
+4. **Exception for names (phase 2):** `mmcif_rplresname` and `mmcif_uniqname` change *both* name columns (residue
    names: `auth_comp_id` and `label_comp_id`; atom names: `auth_atom_id` and `label_atom_id`). Names are the same
    chemical identity in both schemes, and programs differ in which one they read, so changing only one would be
    invisible in some of them.
-5. **`cif_chainbows` and `cif_swapids` move to phase 3** (TER-based chain splitting has no mmCIF meaning, and
-   swapping ids overlaps with `cif_label2auth` / `cif_auth2label`).
+5. **`mmcif_chainbows` and `mmcif_swapids` move to phase 3** (TER-based chain splitting has no mmCIF meaning, and
+   swapping ids overlaps with `mmcif_label2auth` / `mmcif_auth2label`).
 
 Decided for phase 3 (2026-10-24):
 
-6. **No `cif_chainbows`.** TER records only separate molecules in PDB files, and mmCIF names every molecule. So
-   `cif_frompdb` now starts a new molecule at each TER record (also in blank or repeated chains) and gives atoms
-   of a blank chain their label chain as author chain. For mmCIF files, `cif_label2auth -chain` gives each
+6. **No `mmcif_chainbows`.** TER records only separate molecules in PDB files, and mmCIF names every molecule. So
+   `mmcif_frompdb` now starts a new molecule at each TER record (also in blank or repeated chains) and gives atoms
+   of a blank chain their label chain as author chain. For mmCIF files, `mmcif_label2auth -chain` gives each
    molecule its own author chain.
-7. **No `cif_swapids`.** A swap would put author values into the label columns. `cif_auth2label` is kept, for
+7. **No `mmcif_swapids`.** A swap would put author values into the label columns. `mmcif_auth2label` is kept, for
    chains only: it copies the author chain onto the label chain of each *polymer*, leaves ligands and waters on
    their own label chains, and refuses to merge molecules. Its `--help` says why residue numbers are not copied.
-8. **`cif_label2auth` copies everything by default** (chains and residue numbers); `-chain` or `-res` copies only
+8. **`mmcif_label2auth` copies everything by default** (chains and residue numbers); `-chain` or `-res` copies only
    one. It refuses when two residues would get the same identifiers.
-9. **`cif_prune` (and `--prune`) after the first release.** Removing the rows of deleted molecules is well
+9. **`mmcif_prune` (and `--prune`) after the first release.** Removing the rows of deleted molecules is well
    defined; keeping renames in step is not settled yet. A note for later: the edit tools change one scheme only
-   (`cif_rplchain` changes `auth_asym_id` and leaves `label_asym_id`), so label ids could serve as the key for
+   (`mmcif_rplchain` changes `auth_asym_id` and leaves `label_asym_id`), so label ids could serve as the key for
    re-deriving author ids in the other tables; only residue and atom *names* are changed in both schemes
    (decision 4), and names are not keys.
 10. **No gemmi path.** The core stays stdlib only. Checking a file against the PDBx/mmCIF dictionary is left to
-    external validators (`cif_validate --help` mentions `gemmi validate`).
-11. **Leftovers fixed in phase 3:** TER records in `cif_topdb`, quoted `'.'` / `'?'` read as text, and
-    `cif_selaltloc` updating `_struct_conn`.
+    external validators (`mmcif_validate --help` mentions `gemmi validate`).
+11. **Leftovers fixed in phase 3:** TER records in `mmcif_topdb`, quoted `'.'` / `'?'` read as text, and
+    `mmcif_selaltloc` updating `_struct_conn`.
 
 Decided 2026-10-24:
 
-12. **gemmi is not in the final version.** The gemmi cross-checks in the test suite are a development check
-    only. Before the first release (phase 4) they are removed from the tests, the CI workflow and the `[test]`
-    extra. A gemmi validity check can live on as a separate script (e.g. `tools/check_with_gemmi.py`), run by
-    hand and not part of the test suite or CI.
+12. **gemmi is not in the final version.** No gemmi in the package, its help texts, the tests, the CI workflow
+    or the `[test]` extra (done 2026-10-24, start of phase 4). The only gemmi check is
+    `tools/check_with_gemmi.py`, a separate script run by hand: it runs the gemmi *program* (`gemmi validate`),
+    which the user installs separately and can point to with `--gemmi PATH` (or `$GEMMI`).
 
-Still open, for phase 4:
+Decided for phase 4 (2026-10-24):
 
-- **Naming**: `cif_*` (proposed) or `mmcif_*`?
-- **Upstream**: build an independent package, or propose it to the Bonvin lab as a sister project / `pdb-tools`
-  v3 subpackage?
-- **Which of our existing pipelines** need to migrate first?
+13. **Name: mmcif-tools everywhere.** The PyPI name `mmcif-tools`, the import package `mmciftools`, commands
+    `mmcif_*`, and `MMCIFTOOLS_SCHEME`. Two reasons the old names could not stay:
+    - `ciftools` is already a PyPI package (a BinaryCIF library), with the same import name, and PyPI refuses
+      new names that are too similar, so `cif-tools` would probably have been refused.
+    - cod-tools (small-molecule crystallography, in Debian/Ubuntu) installs about 60 `cif_*` commands,
+      including `cif_validate` and `cif_merge`.
+14. **Independent project.** mmcif-tools is inspired by pdb-tools but not related to it, and is distributed
+    on its own. pdb-tools is credited in README, NOTICE (as the Apache-2.0 licence asks, since the conventions
+    and parts of the help texts follow pdb-tools) and CITATION.cff; nothing more. The help texts end with
+    "This program is part of the mmcif-tools suite." (no longer "a port of pdb-tools"). The comparisons with
+    pdb_X tools in the help texts stay, for users coming from pdb-tools.
+15. **No search of existing pipelines.** The goal is that the tools work on any mmCIF file. Phase 4 adds an
+    AlphaFold DB (ModelCIF) model and an entry with real symmetry operations (1STP) to the real-entry set.
+16. **Docs:** the tool reference `docs/tools.md` is generated from the `--help` texts (`tools/make_docs.py`;
+    a test and a CI step check that it is up to date). CHANGELOG.md and CITATION.cff are added. A user guide
+    on GitHub Pages comes later.
+17. **Version 0.1.0**, a test release: the first users test it from the repository; PyPI and conda-forge come
+    after that.
+18. **Python 3.9 stays while it costs nothing** (the code is stdlib only and macOS's own python3 is 3.9); CI
+    also covers the newest versions, up to 3.15.
+19. **Four more mmCIF tools:** `mmcif_selentity` / `mmcif_delentity`, `mmcif_assembly`, `mmcif_info`.
+20. **pdb-tools stays a test-only cross-check** (the `[test]` extra); it is not shipped.
 
 ## 8. Phase 0 status (2026-10-23): done
 
 **What exists:**
-- `ciftools/_cif.py`: the shared streaming layer, stdlib only.
+- `mmciftools/_cif.py`: the shared streaming layer, stdlib only.
   - **Events:** `DataBlock`, `Verbatim`, `Loop`, `Row`, `LoopEnd`.
   - **Functions:** `parse()`, `write()`/`Writer`, `quote()`, `get_scheme()`/`column()` (auth by default), and
     `open_input()` (handles gzip and CRLF).
-  - **CLI:** `python -m ciftools._cif` round-trips a file.
+  - **CLI:** `python -m mmciftools._cif` round-trips a file.
 - `tests/test_cif.py`: 47 tests, all passing; the 2 gemmi tests are skipped when gemmi is missing.
 - `tests/data/`: 11 hand-written fixtures, one edge case each.
 - `tests/bench_cif.py`: the benchmark.
@@ -306,19 +327,19 @@ in the real-file check:
 
 | Group | Tools |
 |---|---|
-| Select / delete | `cif_selchain`, `cif_delchain`, `cif_selres`, `cif_delres`, `cif_selresname`, `cif_delresname`, `cif_selatom`, `cif_selelem`, `cif_selhetatm`, `cif_delhetatm`, `cif_selaltloc`, `cif_selmodel` |
-| Edit | `cif_chain`, `cif_rplchain`, `cif_b`, `cif_occ`, `cif_reres`, `cif_shiftres` |
-| Inspect | `cif_wc`, `cif_tofasta` |
-| Fetch | `cif_fetch` |
+| Select / delete | `mmcif_selchain`, `mmcif_delchain`, `mmcif_selres`, `mmcif_delres`, `mmcif_selresname`, `mmcif_delresname`, `mmcif_selatom`, `mmcif_selelem`, `mmcif_selhetatm`, `mmcif_delhetatm`, `mmcif_selaltloc`, `mmcif_selmodel` |
+| Edit | `mmcif_chain`, `mmcif_rplchain`, `mmcif_b`, `mmcif_occ`, `mmcif_reres`, `mmcif_shiftres` |
+| Inspect | `mmcif_wc`, `mmcif_tofasta` |
+| Fetch | `mmcif_fetch` |
 
 All 21 are registered as console scripts in `pyproject.toml`. Each tool has pdb-tools' layout: the docstring is
 its `--help` text, then `check_input`, `run` and `main`.
 
 **Shared modules:**
-- `ciftools/_cli.py`: pdb-tools-style argument handling. It reads `[-option] [file]` or stdin, takes
+- `mmciftools/_cli.py`: pdb-tools-style argument handling. It reads `[-option] [file]` or stdin, takes
   `--auth`/`--label` and `--help`, writes `ERROR!! ...` plus the usage with exit code 1, and exits quietly on a
   closed pipe.
-- `ciftools/_atoms.py`:
+- `mmciftools/_atoms.py`:
   - `Fields`, the identifier columns for the chosen scheme;
   - `filter_atoms()`, for the select/delete tools;
   - `rename()`, for chain and residue edits;
@@ -331,7 +352,7 @@ its `--help` text, then `check_input`, `run` and `main`.
      synthetic 1M-atom benchmark, a one-column edit went from 5.6 to 4.1 s, and three columns from 7.1 to 6.1 s.
      A copy stays at about 1.5 s, and peak memory stays at about 0.01 MB.
    - Rows holding quoted values without spaces (e.g. `"O5'"` in every nucleic acid) now take the fast path. That
-     made `cif_delhetatm` on the 80S ribosome (4V6X, 237k atoms) go from 2.5 to 1.3 s.
+     made `mmcif_delhetatm` on the 80S ribosome (4V6X, 237k atoms) go from 2.5 to 1.3 s.
 2. **Related tables.** Select/delete tools remove `_atom_site_anisotrop` rows (matched by atom id) and
    `_struct_conn` links whose partner atom was removed. A link counts as dangling only if its partner existed in
    the input. Chain and residue edits update the same two tables.
@@ -359,9 +380,9 @@ Still open:
   - edit tools keep the atom count;
   - no tool creates an anisotropic row or link that does not match an atom.
 - **Bugs this found and fixed:**
-  - In the first pass, the keep-test was only run on link partners, which broke `cif_delres -::N`, a tool that
+  - In the first pass, the keep-test was only run on link partners, which broke `mmcif_delres -::N`, a tool that
     counts residues (dangling links on 4V6X and 6VXX).
-  - `cif_reres` mismatched the anisotropic rows of residues modelled as two residue types (1EJG PRO/SER and
+  - `mmcif_reres` mismatched the anisotropic rows of residues modelled as two residue types (1EJG PRO/SER and
     LEU/ILE).
   - Quoted atom names were slow.
 
@@ -376,36 +397,36 @@ Over 14 structures (5 fixtures + 9 real entries; 4V6X does not fit the PDB forma
 | Documented deviations | 8 | `selaltloc` on the fixture, 1EJG and 1PPB; `tofasta` on 1KX5 (DNA) |
 | Not comparable | 3 | `reres` / `shiftres` on 1JJ2, where pdb-tools stops at residue 9999 |
 
-The cross-check also showed that `cif_selmodel` should return a single-model file whole, as `pdb_selmodel`
+The cross-check also showed that `mmcif_selmodel` should return a single-model file whole, as `pdb_selmodel`
 does. That is fixed.
 
 **Deliberate deviations from pdb-tools** (each is noted in the tool's `--help`):
 - **Chain identifiers.** They are case-sensitive and may be longer than one character (`pdb_delchain` upper-cases
-  them). mmCIF has no blank chain, so `cif_chain` needs an identifier.
-- **`cif_selaltloc`.** It chooses one location per residue, keeps atoms without an altloc, and keeps the atom
+  them). mmCIF has no blank chain, so `mmcif_chain` needs an identifier.
+- **`mmcif_selaltloc`.** It chooses one location per residue, keeps atoms without an altloc, and keeps the atom
   order.
   - `pdb_selaltloc` compares residue numbers as text and ignores insertion codes. On 1PPB it loses
     insertion-code residues; on 1EJG it drops backbone atoms with `-A`.
-- **`cif_selhetatm`.** It keeps the metadata categories; `pdb_selhetatm` drops every non-HETATM record.
-- **`cif_selelem`.** It matches elements ignoring case.
-- **`cif_delres`.** It accepts a one-residue range (`-5:5`).
-- **`cif_tofasta`.** It maps DNA (DA, DC, DG, DT) to bases, where `pdb_tofasta` gives X. It reads the first model
+- **`mmcif_selhetatm`.** It keeps the metadata categories; `pdb_selhetatm` drops every non-HETATM record.
+- **`mmcif_selelem`.** It matches elements ignoring case.
+- **`mmcif_delres`.** It accepts a one-residue range (`-5:5`).
+- **`mmcif_tofasta`.** It maps DNA (DA, DC, DG, DT) to bases, where `pdb_tofasta` gives X. It reads the first model
   only, never writes empty records, and adds `-seqres`.
-- **`cif_wc`.** The `-a` / `-h` lists show atom names and HETATM residue names. (`pdb_wc -h` lists the first 3
+- **`mmcif_wc`.** The `-a` / `-h` lists show atom names and HETATM residue names. (`pdb_wc -h` lists the first 3
   characters of atom names.)
-- **`cif_fetch`.**
+- **`mmcif_fetch`.**
   - It exits 1 on a failed download, where `pdb_fetch` exits 0.
   - It accepts extended PDB ids and AlphaFold DB ids, and `-biounit` uses `<id>-assembly1.cif.gz`.
 - **Residue numbers.** There are no limits (pdb-tools stops at 9999). `--label` renumbering warns that it breaks
   the link to `_entity_poly_seq`.
-- **Help.** It is `--help` only, because `-h` is a real option (`cif_wc -h`, chain `h`).
+- **Help.** It is `--help` only, because `-h` is a real option (`mmcif_wc -h`, chain `h`).
 
 **Known limitations:**
 - These categories are not updated by any tool: `_struct_conf`, `_struct_sheet_range`, `_pdbx_poly_seq_scheme`,
   `_pdbx_struct_assembly_gen`, `_struct_site_gen`, `_pdbx_struct_conn_angle`, ...
-- `cif_selaltloc` leaves `_struct_conn.pdbx_ptnr*_label_alt_id` as it was.
+- `mmcif_selaltloc` leaves `_struct_conn.pdbx_ptnr*_label_alt_id` as it was.
 - Anisotropic rows placed *before* `_atom_site` are not pruned. No real file has been seen with that order.
-- `cif_fetch` was checked live on one RCSB entry (byte-identical to the copy fetched earlier). The AlphaFold DB
+- `mmcif_fetch` was checked live on one RCSB entry (byte-identical to the copy fetched earlier). The AlphaFold DB
   path is tested with a fake network only.
 - With the real entries fetched and gemmi + pdb-tools installed, the full suite (93 tests) takes about 6.5 minutes.
   Most of that is the edit-every-value and gemmi checks on the two ribosomes and the pdb-tools cross-check.
@@ -413,13 +434,13 @@ does. That is fixed.
 
 ## 10. Phase 2 status (2026-10-23): done
 
-**The 21 remaining ports** (42 tools in total; `cif_chainbows` and `cif_swapids` moved to phase 3, decision 5):
+**The 21 remaining ports** (42 tools in total; `mmcif_chainbows` and `mmcif_swapids` moved to phase 3, decision 5):
 
 | Group | Tools |
 |---|---|
-| Single file | `cif_delelem`, `cif_keepcoord`, `cif_head`, `cif_element`, `cif_rplresname`, `cif_fixinsert` (+ alias `cif_delinsertion`), `cif_reatom`, `cif_uniqname`, `cif_gap`, `cif_sort` |
-| Models / several files | `cif_splitchain`, `cif_splitmodel`, `cif_mkensemble`, `cif_chkensemble`, `cif_merge`, `cif_intersect` |
-| Format | `cif_tidy`, `cif_validate`, `cif_topdb`, `cif_frompdb` |
+| Single file | `mmcif_delelem`, `mmcif_keepcoord`, `mmcif_head`, `mmcif_element`, `mmcif_rplresname`, `mmcif_fixinsert` (+ alias `mmcif_delinsertion`), `mmcif_reatom`, `mmcif_uniqname`, `mmcif_gap`, `mmcif_sort` |
+| Models / several files | `mmcif_splitchain`, `mmcif_splitmodel`, `mmcif_mkensemble`, `mmcif_chkensemble`, `mmcif_merge`, `mmcif_intersect` |
+| Format | `mmcif_tidy`, `mmcif_validate`, `mmcif_topdb`, `mmcif_frompdb` |
 
 **Library additions:**
 - **Adding columns.** `Loop.new()` / `Loop.with_columns()` and `Row.moved()`: rows can be put into a loop with
@@ -437,54 +458,54 @@ does. That is fixed.
 - `tests/test_tools_phase2.py`: 26 unit and command-line tests.
 - **Real entries** (`tests/test_real.py`):
   - every new single-file tool runs on every entry, with the phase-1 consistency checks;
-  - `cif_element -all` gives back the deposited `type_symbol` for **all 403,053 atoms** of the 10 entries (hemes,
+  - `mmcif_element -all` gives back the deposited `type_symbol` for **all 403,053 atoms** of the 10 entries (hemes,
     ions, glycans, lipids, nucleic acids);
-  - `cif_topdb` → `cif_frompdb` gives back every author identifier on the 9 entries that fit PDB. It also gives
+  - `mmcif_topdb` → `mmcif_frompdb` gives back every author identifier on the 9 entries that fit PDB. It also gives
     back every label identifier on the 5 entries without missing residues;
-  - 1D3Z split into its 10 models and rebuilt with `cif_mkensemble` passes `cif_chkensemble`;
-  - `cif_validate` finds no errors in any entry;
-  - `cif_tidy` keeps every value and is stable (running it twice changes nothing).
+  - 1D3Z split into its 10 models and rebuilt with `mmcif_mkensemble` passes `mmcif_chkensemble`;
+  - `mmcif_validate` finds no errors in any entry;
+  - `mmcif_tidy` keeps every value and is stable (running it twice changes nothing).
 - **Cross-check against pdb-tools** (40 command lines × 14 structures = 630 comparisons): 606 identical, 15
   documented deviations, 9 not comparable. The 9 are `pdb_sort` refusing multi-model files, and the 9999-residue
   limit on 1JJ2.
 
 **Deliberate deviations** (each in the tool's `--help`):
-- **`cif_element`**:
+- **`mmcif_element`**:
   - It fills only missing elements by default (`-all` re-assigns), because deposited elements are authoritative.
   - mmCIF names have no column alignment, so it uses its own rules (ion = residue name; SE in MSE; two-letter
     elements in ligands; else the first letter).
-- **`cif_fixinsert`.** The shift restarts at each chain instance (`label_asym_id`, the TER equivalent) and in each
+- **`mmcif_fixinsert`.** The shift restarts at each chain instance (`label_asym_id`, the TER equivalent) and in each
   model. It accepts multi-character chains and negative numbers.
-- **`cif_reatom`.** Ids continue across models (mmCIF ids are unique); ANISOU ids follow.
-- **`cif_uniqname`.** It also updates the atom names in `_atom_site_anisotrop` and `_struct_conn`.
-- **`cif_gap`.** `52 → 52A` is not a gap, and alternate-location Cα atoms are not compared.
-- **`cif_sort`.** Multi-model files are sorted model by model, nothing is removed, and anisotropic rows follow
+- **`mmcif_reatom`.** Ids continue across models (mmCIF ids are unique); ANISOU ids follow.
+- **`mmcif_uniqname`.** It also updates the atom names in `_atom_site_anisotrop` and `_struct_conn`.
+- **`mmcif_gap`.** `52 → 52A` is not a gap, and alternate-location Cα atoms are not compared.
+- **`mmcif_sort`.** Multi-model files are sorted model by model, nothing is removed, and anisotropic rows follow
   their atoms.
-- **Split tools.** Each output is a complete mmCIF file (metadata kept, block renamed). `cif_splitmodel` writes a
+- **Split tools.** Each output is a complete mmCIF file (metadata kept, block renamed). `mmcif_splitmodel` writes a
   single-model file too.
-- **`cif_mkensemble` / `cif_merge`.**
+- **`mmcif_mkensemble` / `mmcif_merge`.**
   - The `_atom_site` loop has the union of the columns, and atom ids are renumbered to stay unique.
-  - `cif_merge` merges into one data block and warns on chain clashes; `pdb_merge` concatenates.
-- **`cif_chkensemble`.** The atom id is not part of an atom's identity, otherwise every ensemble would differ.
-- **`cif_intersect`.** It keeps every model, and the first file's metadata.
-- **`cif_head` / `cif_keepcoord`.** They keep a complete mmCIF file.
-- **`cif_topdb`.** It writes the PDB format as specified: right-justified names and elements, MODEL columns
+  - `mmcif_merge` merges into one data block and warns on chain clashes; `pdb_merge` concatenates.
+- **`mmcif_chkensemble`.** The atom id is not part of an atom's identity, otherwise every ensemble would differ.
+- **`mmcif_intersect`.** It keeps every model, and the first file's metadata.
+- **`mmcif_head` / `mmcif_keepcoord`.** They keep a complete mmCIF file.
+- **`mmcif_topdb`.** It writes the PDB format as specified: right-justified names and elements, MODEL columns
   11–14, charges as `1-`. It refuses structures that do not fit PDB, with no partial output.
-- **`cif_frompdb`.** It assigns real label identifiers, plus `_entry`, `_cell` and `_symmetry` from CRYST1.
-- **`cif_tidy` / `cif_validate`.** Both are mmCIF-specific: `pdb_tidy` and `pdb_validate` fix and check PDB
+- **`mmcif_frompdb`.** It assigns real label identifiers, plus `_entry`, `_cell` and `_symmetry` from CRYST1.
+- **`mmcif_tidy` / `mmcif_validate`.** Both are mmCIF-specific: `pdb_tidy` and `pdb_validate` fix and check PDB
   columns, which mmCIF does not have.
 
 **Known limitations:**
-- **`cif_frompdb`:**
+- **`mmcif_frompdb`:**
   - `label_seq_id` counts only the residues present in the file, because SEQRES is not used. It differs from the
     PDB entry after missing residues (1JJ2, 1KX5, 6VXX).
   - PDB entries order ligand instances and group glycans (branched entities) by their own conventions (2RH1,
     6VXX).
-- **`cif_merge`.** It does not reconcile `_entity` / `_struct_asym`, and it drops the anisotropic and link rows of
+- **`mmcif_merge`.** It does not reconcile `_entity` / `_struct_asym`, and it drops the anisotropic and link rows of
   the files after the first.
-- **`cif_topdb`.** It writes no TER, CONECT or header records.
-- **`cif_validate`.** It does not check the file against the PDBx/mmCIF dictionary.
-- **`cif_sort`.** It holds the atom rows in memory, as raw text.
+- **`mmcif_topdb`.** It writes no TER, CONECT or header records.
+- **`mmcif_validate`.** It does not check the file against the PDBx/mmCIF dictionary.
+- **`mmcif_sort`.** It holds the atom rows in memory, as raw text.
 - **Run time.** With the real entries fetched and gemmi + pdb-tools installed, the full suite (130 tests) takes
   about 7.5 minutes. Without the real entries, it takes a few seconds.
 
@@ -494,32 +515,32 @@ does. That is fixed.
 
 | Group | Tools |
 |---|---|
-| Identifiers | `cif_label2auth` (`-chain`, `-res`), `cif_auth2label` |
-| Categories / blocks | `cif_cat`, `cif_delcat`, `cif_keepcat`, `cif_blocks` |
+| Identifiers | `mmcif_label2auth` (`-chain`, `-res`), `mmcif_auth2label` |
+| Categories / blocks | `mmcif_cat`, `mmcif_delcat`, `mmcif_keepcat`, `mmcif_blocks` |
 
-- **`cif_label2auth`.** Copies `label_asym_id` → `auth_asym_id` and, for polymer residues, `label_seq_id` →
+- **`mmcif_label2auth`.** Copies `label_asym_id` → `auth_asym_id` and, for polymer residues, `label_seq_id` →
   `auth_seq_id` (insertion codes removed); ligands and waters keep their numbers. Links and anisotropic rows
   follow. It refuses when two residues would end up with the same chain and number.
-- **`cif_auth2label`.** Copies author chains onto the label chains of polymers only. It refuses when an author
+- **`mmcif_auth2label`.** Copies author chains onto the label chains of polymers only. It refuses when an author
   chain holds two polymers, or when the new name is already the label chain of a ligand or water.
-- **`cif_cat -_atom_site[.col,col]`.** One category as TSV: a header line, then one line per row; nulls as in the
+- **`mmcif_cat -_atom_site[.col,col]`.** One category as TSV: a header line, then one line per row; nulls as in the
   file; tabs, newlines and backslashes escaped. With several blocks, the header is repeated only when the
   columns change.
-- **`cif_delcat` / `cif_keepcat`.** Comma-separated names, case-insensitive; a trailing `*` matches a prefix
-  (`'-_pdbx_validate*'`). `cif_keepcat -_atom_site,_struct_conn` gives the same output as `cif_keepcoord`.
-- **`cif_blocks`.** Lists the block names, or writes the named blocks; it stops reading once they are written
+- **`mmcif_delcat` / `mmcif_keepcat`.** Comma-separated names, case-insensitive; a trailing `*` matches a prefix
+  (`'-_pdbx_validate*'`). `mmcif_keepcat -_atom_site,_struct_conn` gives the same output as `mmcif_keepcoord`.
+- **`mmcif_blocks`.** Lists the block names, or writes the named blocks; it stops reading once they are written
   (quick for one component of the whole CCD).
 
 **Fixes:**
-- **`cif_frompdb` and TER records** (found while planning). In a PDB file with blank chains whose numbering
+- **`mmcif_frompdb` and TER records** (found while planning). In a PDB file with blank chains whose numbering
   restarts after each TER (typical MD output), two molecules got the same label ids. Now each TER record ends a
   molecule, a blank chain gets its label chain as author chain (or the next free name), and later models without
   TER records are matched by chain and residue number.
-- **`cif_topdb`** writes a TER record after the last residue of each polymer, with a serial number.
+- **`mmcif_topdb`** writes a TER record after the last residue of each polymer, with a serial number.
 - **Quoted `'.'` and `'?'`.** The reader returns them as `_cif.Text`, a str that is not equal to the null, so
-  `value in ('.', '?')` tests only match real nulls, and `quote()` writes them back in quotes (`cif_tidy`, rows
+  `value in ('.', '?')` tests only match real nulls, and `quote()` writes them back in quotes (`mmcif_tidy`, rows
   formatted afresh).
-- **`cif_selaltloc`** removes links (`_struct_conn`) to a removed conformer, and sets `pdbx_ptnr*_label_alt_id`
+- **`mmcif_selaltloc`** removes links (`_struct_conn`) to a removed conformer, and sets `pdbx_ptnr*_label_alt_id`
   to `.` on links to the kept one. None of the 10 real entries has such links, so this is tested on a fixture.
 - **`parse()`** accepts category prefixes (`'_pdbx_*'`).
 
@@ -527,13 +548,13 @@ does. That is fixed.
 - `tests/test_tools_phase3.py`: 31 unit and command-line tests; they also pass on Python 3.9.
 - Real entries:
   - the new tools run on every entry with the phase-1 consistency checks;
-  - `cif_label2auth` gives author ids equal to the label ids;
-  - when `cif_auth2label` succeeds, it never merges two label chains;
-  - `cif_cat` prints one line per atom, `cif_blocks` lists the entry, and `cif_keepcat` matches `cif_keepcoord`;
+  - `mmcif_label2auth` gives author ids equal to the label ids;
+  - when `mmcif_auth2label` succeeds, it never merges two label chains;
+  - `mmcif_cat` prints one line per atom, `mmcif_blocks` lists the entry, and `mmcif_keepcat` matches `mmcif_keepcoord`;
   - the PDB round trip still gives back the label ids, now through TER records.
 - What the identifier tools do on the unedited entries:
 
-  | Entry | `cif_auth2label` | `cif_label2auth -res` |
+  | Entry | `mmcif_auth2label` | `mmcif_label2auth -res` |
   |---|---|---|
   | 1D3Z, 1EHZ, 1EJG, 4HHB | no change | no change |
   | 1JJ2, 1KX5, 4V6X | changes the label chains | renumbers |
@@ -541,13 +562,93 @@ does. That is fixed.
   | 2RH1 | no change | refuses: `A 267` would become `A 402`, the number of a sulfate |
   | 6VXX | no change | renumbers |
 
-  Without `-res`, `cif_label2auth` (chains and numbers) works on all 10, because ligands then move to chains of
+  Without `-res`, `mmcif_label2auth` (chains and numbers) works on all 10, because ligands then move to chains of
   their own.
 - **Full suite:** 163 tests pass, in about 8.5 minutes, with the real entries, gemmi and pdb-tools installed. The
   pdb-tools cross-check is unchanged by the new TER records.
 
 **Known limitations:**
-- `cif_label2auth` and `cif_auth2label` leave the other categories that name chains or residues
-  (`_struct_asym`, `_pdbx_poly_seq_scheme`, `_struct_conf`, ...) as they were; `cif_prune` is postponed.
-- `cif_delcat` / `cif_keepcat` check nothing: removing `_atom_site` leaves `_atom_site_anisotrop` without atoms.
-- `cif_cat` prints a quoted `'.'` and a null `.` the same way.
+- `mmcif_label2auth` and `mmcif_auth2label` leave the other categories that name chains or residues
+  (`_struct_asym`, `_pdbx_poly_seq_scheme`, `_struct_conf`, ...) as they were; `mmcif_prune` is postponed.
+- `mmcif_delcat` / `mmcif_keepcat` check nothing: removing `_atom_site` leaves `_atom_site_anisotrop` without atoms.
+- `mmcif_cat` prints a quoted `'.'` and a null `.` the same way.
+
+## 12. Phase 4 status (2026-10-24): test release 0.1.0
+
+**Renamed to mmcif-tools** (§7, decisions 13-14): package `mmciftools`, 52 commands `mmcif_*`,
+`MMCIFTOOLS_SCHEME`, NOTICE and help texts as an independent project inspired by pdb-tools. Files were moved
+with `git mv`, so their history follows.
+
+**gemmi out of the package** (§7, decision 12):
+- gemmi is not imported or mentioned anywhere in the package, its help texts, the tests, the CI workflow or the
+  `[test]` extra.
+- The gemmi checks in the tests were replaced by standard-library ones:
+  - every tool's output re-reads to the same text and has no syntax error for `mmcif_validate`;
+  - a new test checks that the package imports only the Python standard library.
+- `tools/check_with_gemmi.py` runs the gemmi program, which the user installs separately. It runs
+  `gemmi validate` on each file, with options `--gemmi PATH`, `--dict`, `--parents` and `-` for stdin. It is not
+  installed and not in the source distribution.
+
+**Four new tools** (§7, decision 19):
+- **`mmcif_selentity` / `mmcif_delentity`.** Select by entity number or type (polymer, non-polymer, branched,
+  macrolide, water), with a fallback for files without `_entity`. On 1EHZ, `mmcif_delentity -non-polymer,water`
+  keeps the whole tRNA (1652 atoms); `mmcif_delhetatm` cuts 323 atoms of modified nucleotides out of it.
+- **`mmcif_assembly`.** Applies `_pdbx_struct_oper_list` to the chains of `_pdbx_struct_assembly_gen`,
+  including products such as `(1-60)(61-88)` (applied right to left, as the dictionary defines). The naming
+  follows the RCSB's assembly files: the identity copy keeps its names, the others become `A-2`, or `A-1x61` for
+  a product.
+  - Checked against the RCSB's own assembly files: 1STP (4 copies, 4004 atoms) and 2BUK (60 copies, 95,280
+    atoms) have the same atoms, names and coordinates (largest difference 0.000 Å). Only the order differs: the
+    RCSB lists ions copy by copy.
+  - For 1M4X, `(1-60)(61-88)` gives 1680 operations. With our order, the 60 icosahedral copies made with each
+    of the 28 other operations lie on one sphere (radius spread 3e-6 Å); the reverse order spreads them over
+    229 Å.
+  - gemmi 0.7.5 expands this expression to only 60 operations, so it could not serve as the reference.
+- **`mmcif_info`.** Title, keywords, method, resolution, R-factors, dates, organisms, model quality (ModelCIF),
+  entities and assemblies, as `Item:<tab>value` lines.
+
+**Real-entry set: 12 entries.** 1STP (symmetry operations) and AF-P69905-F1 (an AlphaFold DB model, ModelCIF)
+were added. `tests/fetch_real.py` fetches AlphaFold DB models through the AlphaFold DB API.
+
+**Docs:**
+- `docs/tools.md` is generated from the help texts by `tools/make_docs.py`. `tests/test_docs.py` and a CI step
+  check that it is up to date and that the README lists every tool.
+- README rewritten for users; CHANGELOG.md and CITATION.cff added (pdb-tools cited as a reference).
+
+**Packaging:**
+- **Metadata.** Version 0.1.0 (single source: `mmciftools.__version__`), SPDX licence `Apache-2.0` with
+  LICENSE and NOTICE as licence files, authors, URLs, classifiers for Python 3.9 to 3.15. MANIFEST.in puts the
+  fixtures, the docs, the changelog and the citation in the sdist.
+- **Wheel.** Holds only `mmciftools`. Installed in clean virtual environments for Python 3.13 and macOS's 3.9
+  (no network), all 52 commands answer `--help`, and a pipeline (`mmcif_assembly | mmcif_delentity -water |
+  mmcif_wc`) works.
+- **sdist.** Its own tests pass from the unpacked sdist: 177 tests, 18 skipped (no real entries, no `tools/`).
+- **CI.** Python 3.9 (ubuntu-24.04), 3.10 to 3.15 (ubuntu-latest), and 3.15 on macOS and Windows. The package
+  is installed with the test extras and tested again.
+
+**Tests:** 177 tests pass in about 8 minutes, with the 12 real entries and the pdb-tools cross-check.
+
+**Dictionary check with gemmi** (gemmi 0.7.5 program; a one-off run outside the repo, through
+`tools/check_with_gemmi.py`):
+- **What was checked:** every tool invocation of `tests/test_real.py`, plus `mmcif_assembly`,
+  `mmcif_label2auth -res`, `mmcif_auth2label`, `mmcif_tidy`, `mmcif_keepcat`, `mmcif_merge` and the
+  `mmcif_topdb | mmcif_frompdb` round trip, on the 12 entries: 42 outputs per entry.
+- **Dictionaries:** the PDBx/mmCIF dictionary (v5.417) for PDB entries, and the ModelCIF dictionary
+  (`mmcif_ma.dic`) for the AlphaFold model.
+- **Result:** no output has a dictionary error that its input does not have (item types, allowed values,
+  mandatory items, unique keys). The 11 PDB entries and all their outputs pass. The AlphaFold DB file has one
+  violation of its own (`_pdbx_audit_revision_details.type` `Release`), which its outputs keep.
+- **Refusals,** as expected: `mmcif_label2auth -res` on 1PPB and 2RH1 (a ligand already has one of the new
+  numbers), and `mmcif_assembly` on the AlphaFold model (no assemblies).
+- **Parent check (`--parents`):** compared with each input, it lists the categories that newly refer to
+  something missing. These are the categories no tool keeps in step, and so the input list for `mmcif_prune`
+  (phase 6):
+  - **after removing atoms:** `_pdbx_validate_*`, `_struct_conf`, `_struct_sheet_range`,
+    `_pdbx_struct_sheet_hbond`, `_struct_mon_prot_cis`, `_struct_site_gen`, `_pdbx_nonpoly_scheme`,
+    `_pdbx_branch_scheme`, `_pdbx_nonpoly_atom_coordination*`, `_pdbx_modification_feature`,
+    `_pdbx_struct_mod_residue`, `_pdbx_unobs_or_zero_occ_*`, `_pdbx_entity_instance_feature`,
+    `_ndb_struct_na_base_pair(_step)`, and `_ma_qa_metric_local` (ModelCIF);
+  - **after renaming:** the same categories, and `_atom_site` itself, whose ids no longer match
+    `_pdbx_poly_seq_scheme` and `_struct_asym`;
+  - **after `mmcif_keepcoord` / `mmcif_keepcat`:** `_atom_site` refers to the categories that were removed,
+    as intended.

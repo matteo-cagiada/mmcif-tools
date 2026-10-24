@@ -11,25 +11,28 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
         include:
           # Python 3.9 (end of life, but macOS's own python3) has no build
           # for ubuntu-latest (26.04) any more; 24.04 still has 3.9.25.
           - os: ubuntu-24.04
             python-version: "3.9"
           - os: macos-latest
-            python-version: "3.13"
+            python-version: "3.15"
           - os: windows-latest
-            python-version: "3.13"
+            python-version: "3.15"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      # The library itself must work with no dependencies at all.
+          allow-prereleases: true
+      # The tools themselves must work with no dependencies at all.
       - name: Tests (stdlib only)
         run: python -m unittest discover -s tests -v
-      - name: Install test extras
-        run: python -m pip install -e ".[test]"
-      - name: Tests (with gemmi cross-checks)
+      - name: Tool reference is up to date
+        run: python tools/make_docs.py --check
+      - name: Install the package with the test extras
+        run: python -m pip install ".[test]"
+      - name: Tests (with the pdb-tools cross-check)
         run: python -m unittest discover -s tests -v
