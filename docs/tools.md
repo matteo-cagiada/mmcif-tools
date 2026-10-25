@@ -674,7 +674,9 @@ pdb_fixinsert meets a TER record) and in each model (pdb_fixinsert never
 restarts between models). Chains may have several
 characters and numbers may be negative: -A9,B12,AB-3. Insertion codes only
 exist with author identifiers, so --label is not accepted. The matching
-columns of _atom_site_anisotrop and _struct_conn are updated too.
+columns of _atom_site_anisotrop and _struct_conn are updated too. A file
+without a pdbx_PDB_ins_code column (e.g. an integrative model) has no
+insertion codes and is written unchanged.
 
 Usage:
     mmcif_fixinsert [-<option>] <cif file>
@@ -878,7 +880,9 @@ one of them:
 This is the mmCIF counterpart of pdb_chainxseg / pdb_segxchain and, with
 -chain, of pdb_chainbows. Rows of _atom_site_anisotrop and _struct_conn
 follow. Other categories that mention author chains or residue numbers
-(_pdbx_poly_seq_scheme, _struct_conf, ...) are not updated. Nothing is
+(_pdbx_poly_seq_scheme, _struct_conf, ...) are not updated. A file without
+auth_asym_id or auth_seq_id columns (e.g. an integrative model) gets them;
+residues without a label_seq_id are then numbered '?'. Nothing is
 written if two residues would end up with the same chain and number, e.g.
 with -res when a ligand of the chain already has one of the new numbers.
 
@@ -943,6 +947,11 @@ categories are kept, the data block is renamed <block>_<chain>, and rows of
 _atom_site_anisotrop and _struct_conn of other chains are removed.
 
 Chains are auth_asym_id (label_asym_id with --label).
+
+File names are unique ignoring case: on macOS and Windows, 1abc_A.cif and
+1abc_a.cif would be the same file, so a chain whose file name differs from
+an earlier one only in case gets a number (1abc_a~2.cif), with a note on
+stderr. pdb_splitchain overwrites the file instead.
 
 Usage:
     mmcif_splitchain <cif file>
@@ -1289,7 +1298,10 @@ the sequence is read from the atoms of the first model, ligands and waters
 
 The -multi option splits the different chains into different records in the
 FASTA file. The -seqres option reads the full deposited sequence from
-_pdbx_poly_seq_scheme instead, including residues without coordinates. The
+_pdbx_poly_seq_scheme instead, including residues without coordinates (from
+_entity_poly_seq when a file has no _pdbx_poly_seq_scheme, with the chains
+of _entity_poly.pdbx_strand_id, or of _struct_asym with --label). Where two
+residue types share a position (microheterogeneity), the first is used. The
 two can be combined: -multi,seqres.
 
 Usage:

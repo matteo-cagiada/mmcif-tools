@@ -27,7 +27,7 @@ import time
 import unittest
 
 from support import (  # noqa: E402
-    _cif, all_rows, edit_everything, our_tables, read_path,
+    _cif, all_rows, edit_everything, our_tables, read_path, split_by_filtering, split_files,
     real_entries, reference_problems, roundtrip, rows, run_tool)
 
 from mmciftools import (  # noqa: E402
@@ -167,6 +167,21 @@ class TestRealTools(unittest.TestCase):
                 self.assertTrue(fasta.startswith('>' + entry.upper() + '|'))
                 seqres = run_tool(mmcif_tofasta, text, True, True)
                 self.assertTrue(seqres.startswith('>' + entry.upper() + '|'))
+
+    def test_splitchain_batches(self):
+        for entry, text in self.texts.items():
+            if len(rows(text)) > 60000:  # the reference (one pass per chain) is slow
+                continue
+            with self.subTest(entry=entry):
+                self.assertEqual(split_files(text, 'label'), split_by_filtering(text, 'label'))
+
+    def test_seqres_fallback(self):
+        for entry, text in self.texts.items():
+            with self.subTest(entry=entry):
+                bare = run_tool(mmcif_delcat, text, ['_pdbx_poly_seq_scheme'])
+                for multi in (True, False):
+                    self.assertEqual(run_tool(mmcif_tofasta, bare, multi, True),
+                                     run_tool(mmcif_tofasta, text, multi, True))
 
     def test_element_matches_deposited(self):
         for entry, text in self.texts.items():

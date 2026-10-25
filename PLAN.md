@@ -652,3 +652,69 @@ were added. `tests/fetch_real.py` fetches AlphaFold DB models through the AlphaF
     `_pdbx_poly_seq_scheme` and `_struct_asym`;
   - **after `mmcif_keepcoord` / `mmcif_keepcat`:** `_atom_site` refers to the categories that were removed,
     as intended.
+
+## 13. Stress test on 200 systems (2026-10-25)
+
+The test lives outside the repository, in `../mmcif-tools-stress/`: the selection script, the runner, the downloaded
+files (343 MB) and the reports (`reports/summary.md`, `systems.csv`, `all_runs.csv`, `tools.csv`, one CSV per
+system).
+
+**The systems.**
+- **Selection:** 190 PDB entries drawn with a fixed seed from 44 RCSB Search API queries, plus 5 AlphaFold DB
+  models and the PDBe "updated" files of 5 entries.
+- **Methods:** X-ray (tiny, ultra-high resolution, typical, low resolution, large), cryo-EM (single particle,
+  helical, subtomogram, 0.6-2.5M atoms), solution and solid-state NMR (up to 50+ models), neutron, electron
+  crystallography, fiber, powder, solution scattering, EPR/theoretical models, multi-method entries.
+- **Contents:** DNA, RNA, protein-DNA and protein-RNA complexes, DNA/RNA hybrids, PNA, D-amino acids, glycans,
+  oligosaccharides only, peptides, membrane proteins, antibodies, FeS clusters, heme, selenomethionine, many
+  ligands, UNK/UNL, BIRD molecules, more than 100 chains, icosahedral assemblies, chains of more than 3000
+  residues, entries from before 1985 and from 2026, an integrative (IHM) model.
+- **Size:** from 34 to 2,499,256 atoms.
+
+**The runs.**
+- **What ran:** every tool on every system, about 60 command lines each, through the installed wheel's
+  commands.
+- **Checks on each output:**
+  - the exit status;
+  - it re-reads to the same text;
+  - no new unmatched anisotropic or link rows;
+  - atom counts (tools that keep every atom, select/delete pairs, head, intersect, merge, assembly size, split +
+    rebuild, PDB round trip);
+  - no new gemmi dictionary error (PDBx, or ModelCIF for AlphaFold models; outputs up to 40 MB).
+- `mmcif_fetch` downloaded every PDB entry and AlphaFold model.
+
+**Found and fixed** (before the final run):
+- **`mmcif_splitchain`:**
+  - Chains whose ids differ only in case (`A`/`a`, `sA`/`sa`; 17 systems) overwrote each other's files on
+    macOS's case-insensitive file system. File names are now unique ignoring case (`x_a~2.cif`), with a note.
+  - It read the input once per chain (hours for 7Y7A's 1792 chains). It now writes up to 100 files per
+    reading, with byte-identical output: checked on all fixtures and real entries, both schemes.
+- **Missing columns (9A1M, an integrative model without auth_seq_id / pdbx_PDB_ins_code):**
+  - `mmcif_fixinsert` / `mmcif_delinsertion` stopped with an error; such a file is now written unchanged.
+  - `mmcif_label2auth` adds the missing author columns.
+- **`mmcif_tofasta -seqres`:**
+  - It needed `_pdbx_poly_seq_scheme`; it now falls back to `_entity_poly_seq`, with the same output on the
+    12 real entries.
+  - It wrote both residue types of a microheterogeneity (1EJG came out 48 residues instead of 46).
+  - For a file with no polymer (3IRI, sugars only), it now says so.
+
+**Final run** (fixed build):
+- **Outcomes:** 12,424 runs: 12,152 ok, 70 refused, 202 skipped (one model: no `mmcif_mkensemble`; no PDB file:
+  no `mmcif_frompdb`), 0 errors.
+- **Checks:** all passed: atom counts 9,730, re-read 9,556, references 9,556, dictionary 8,812.
+- **Refusals:** all documented ones:
+  - `mmcif_topdb`: structures that do not fit the PDB format (26);
+  - `mmcif_auth2label`: the new label chain is already a ligand's or water's (25);
+  - `mmcif_label2auth -res`: two residues would get the same number (10);
+  - `mmcif_assembly`: no assemblies (6);
+  - `mmcif_tofasta -seqres`: no polymer (3).
+- **Speed:** most tools take 7-11 µs per atom on large files, including Python start-up and gzip; `mmcif_tidy`
+  takes 23. 7Y7A (2.5M atoms) takes 15-25 s per tool, and its 1792-chain split 83 s.
+- **Memory:** the highest peaks are `mmcif_assembly` (2.0 GB on 7Y7A: it holds the asymmetric unit),
+  `mmcif_validate` (1.4 GB) and `mmcif_frompdb` (0.7 GB). The other tools stream, at 15-300 MB.
+
+**For later:**
+- `mmcif_auth2label` refuses on 12% of entries. In PDB entries, author chain names often coincide with the
+  label chains of ligands (e.g. `H` for an antibody heavy chain), so an option to rename those ligand label
+  chains too may be worth adding.
+- The memory of `mmcif_assembly` and `mmcif_validate` on the largest files could be reduced.

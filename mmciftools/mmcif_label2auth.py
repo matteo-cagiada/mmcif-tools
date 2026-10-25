@@ -32,7 +32,9 @@ one of them:
 This is the mmCIF counterpart of pdb_chainxseg / pdb_segxchain and, with
 -chain, of pdb_chainbows. Rows of _atom_site_anisotrop and _struct_conn
 follow. Other categories that mention author chains or residue numbers
-(_pdbx_poly_seq_scheme, _struct_conf, ...) are not updated. Nothing is
+(_pdbx_poly_seq_scheme, _struct_conf, ...) are not updated. A file without
+auth_asym_id or auth_seq_id columns (e.g. an integrative model) gets them;
+residues without a label_seq_id are then numbered '?'. Nothing is
 written if two residues would end up with the same chain and number, e.g.
 with -res when a ligand of the chain already has one of the new numbers.
 
@@ -72,7 +74,7 @@ def _new_ids(loop, chains, residues):
                                 loop.lineno)
         return None
 
-    auth = _atoms.getter(pos('auth_asym_id', chains), pos('auth_seq_id', residues),
+    auth = _atoms.getter(pos('auth_asym_id', False), pos('auth_seq_id', False),
                          pos('pdbx_PDB_ins_code', False))
     label_chain = pos('label_asym_id', chains)
     label_seq = pos('label_seq_id', residues)
@@ -140,8 +142,10 @@ def run(fhandle, chains=True, residues=True, scheme=None):
         if etype is _cif.Row:
             if kind == _atoms.ATOM_SITE:
                 old, new = new_ids(ev.values)
+                if target is not None:  # with the added author columns ('?' at first)
+                    ev = ev.moved(target)
                 for column, before, after in zip(names, old, new):
-                    if column is not None and after != before:
+                    if column is not None and after is not None and after != before:
                         ev[column] = after
             elif kind is not None:
                 for positions in refs:
@@ -159,8 +163,13 @@ def run(fhandle, chains=True, residues=True, scheme=None):
             kind = ev.category.lower()
             if kind == _atoms.ATOM_SITE:
                 new_ids = _new_ids(ev, chains, residues)
-                names = [c if c in ev else None
+                missing = [c for c, wanted in (('auth_asym_id', chains), ('auth_seq_id', residues))
+                           if wanted and c not in ev]
+                target = ev.with_columns(ev.columns + missing) if missing else None
+                names = [c if c in ev or c in missing else None
                          for c in ('auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code')]
+                if target is not None:
+                    ev = target
             else:
                 refs = [r[:3] for r in _atoms._reference_columns(ev, 'auth')]
         elif etype is _cif.LoopEnd:

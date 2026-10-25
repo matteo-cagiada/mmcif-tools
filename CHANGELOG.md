@@ -28,6 +28,16 @@ The first version for testers. It is not on PyPI or conda-forge yet; install it 
   PDBx/mmCIF (or ModelCIF) dictionary with gemmi, and has no error that its input does not have
   (outside the test suite).
 - **Python 3.9 to 3.15**, on Linux, macOS and Windows.
+- **Fixed after a 200-system stress test** (PDB entries of every method and size, AlphaFold DB models, PDBe
+  files, an integrative model):
+  - `mmcif_splitchain`: chains whose ids differ only in case (`A` and `a`) overwrote each other's files on macOS
+    and Windows; such files now get a number (`1abc_a~2.cif`). It also writes up to 100 chains per reading of
+    the input instead of one, with the same output: 1792 chains no longer take hours.
+  - `mmcif_fixinsert` / `mmcif_delinsertion`: a file without an insertion code column is written unchanged
+    (it was an error).
+  - `mmcif_label2auth`: adds `auth_asym_id` / `auth_seq_id` when a file lacks them (integrative models).
+  - `mmcif_tofasta -seqres`: reads `_entity_poly_seq` when a file has no `_pdbx_poly_seq_scheme`, writes one
+    residue per position where two residue types share it, and explains when a file has no polymer.
 - **Known limitation:** after an edit, categories other than `_atom_site`, `_atom_site_anisotrop` and
   `_struct_conn` that refer to atoms or residues (`_struct_conf`, `_pdbx_poly_seq_scheme`, `_pdbx_validate_*`,
   ...) are left as they were. A tool to bring them back in step is planned.

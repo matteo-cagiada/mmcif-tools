@@ -140,3 +140,37 @@ def our_tables(text):
             vals = ['' if v in ('.', '?') else v for v in ev.values]
             tables.setdefault((block, ev.loop.category.lower()), []).append(vals)
     return tables
+
+
+def split_by_filtering(text, scheme=None):
+    """{chain: file text} as mmcif_splitchain wrote it before phase 5: one
+    filter_atoms pass per chain (the reference for the batched writer)."""
+    from mmciftools import _atoms, mmcif_splitchain
+    source = _atoms.Source(io.StringIO(text, newline=''))
+    out = {}
+    for chain_id in mmcif_splitchain.chains_of(source, scheme):
+        def make_keep(fields, chain_id=chain_id):
+            chain = fields.chain
+            return lambda values: values[chain] == chain_id
+        buf = io.StringIO()
+        _cif.write(_atoms.rename_block(_atoms.filter_atoms(source, make_keep, scheme), '_' + chain_id), buf)
+        out[chain_id] = buf.getvalue()
+    return out
+
+
+def split_files(text, scheme=None):
+    """{chain: file text} written by mmcif_splitchain.run()."""
+    import shutil
+    import tempfile
+    from mmciftools import _atoms, mmcif_splitchain
+    tmp = tempfile.mkdtemp()
+    try:
+        paths = mmcif_splitchain.run(io.StringIO(text, newline=''), 'x', scheme, outdir=tmp)
+        chains = mmcif_splitchain.chains_of(_atoms.Source(io.StringIO(text, newline='')), scheme)
+        out = {}
+        for chain_id, path in zip(chains, paths):
+            with open(path, encoding='utf-8', errors='surrogateescape', newline='') as fh:
+                out[chain_id] = fh.read()
+        return out
+    finally:
+        shutil.rmtree(tmp)

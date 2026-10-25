@@ -24,10 +24,12 @@ import sys
 import unittest
 
 from support import (  # noqa: E402
-    DATA, ROOT, _cif, read, reference_problems, roundtrip, rows, run_tool)
+    DATA, FIXTURES, ROOT, _cif, read, read_path, reference_problems, roundtrip, rows, run_tool,
+    split_by_filtering, split_files)
 
 from mmciftools import (  # noqa: E402
-    mmcif_assembly, mmcif_delcat, mmcif_delentity, mmcif_delhetatm, mmcif_info, mmcif_selentity)
+    mmcif_assembly, mmcif_delcat, mmcif_delentity, mmcif_delhetatm, mmcif_delinsertion,
+    mmcif_fixinsert, mmcif_info, mmcif_label2auth, mmcif_selentity, mmcif_splitchain, mmcif_tofasta)
 
 WWPDB = read('wwpdb_like.cif')
 
@@ -105,6 +107,20 @@ _atom_site_anisotrop.id
 _atom_site_anisotrop.U[1][1]
 1 0.1
 """
+
+
+def drop_columns(text, names):
+    """text without some _atom_site columns (as in integrative models)."""
+    lines = text.split('\n')
+    start = next(i for i, line in enumerate(lines) if line.startswith('_atom_site.'))
+    end = start
+    while lines[end].startswith('_atom_site.'):
+        end += 1
+    tags = [line.strip() for line in lines[start:end]]
+    drop = {tags.index('_atom_site.' + n) for n in names}
+    body = [' '.join(t for k, t in enumerate(line.split()) if k not in drop)
+            if line.startswith(('ATOM', 'HETATM')) else line for line in lines[end:]]
+    return '\n'.join(lines[:start] + [t for k, t in enumerate(tags) if k not in drop] + body)
 
 
 def atoms(text):
@@ -236,6 +252,66 @@ class TestInfo(unittest.TestCase):
         proc = cli('mmcif_info', os.path.join(DATA, 'wwpdb_like.cif'))
         self.assertEqual(proc.returncode, 0)
         self.assertTrue(proc.stdout.startswith(b'Entry:\t1XYZ\n'))
+
+
+class TestStressFixes(unittest.TestCase):
+    """Problems found by the 200-system stress test."""
+
+    def test_split_chains_differing_only_in_case(self):
+        import io
+        import shutil
+        import tempfile
+        text = WWPDB.replace('? 301 HOH A', '? 301 HOH a').replace('? 302 HOH A', '? 302 HOH a')
+        tmp = tempfile.mkdtemp()
+        try:
+            notes = []
+            paths = mmcif_splitchain.run(io.StringIO(text), '6ozp', outdir=tmp, notes=notes)
+            self.assertEqual([os.path.basename(p) for p in paths], ['6ozp_A.cif', '6ozp_a~2.cif'])
+            self.assertEqual(sorted(os.listdir(tmp)), ['6ozp_A.cif', '6ozp_a~2.cif'])
+            self.assertEqual(sum(len(rows(read_path(p))) for p in paths), len(rows(WWPDB)))
+            self.assertEqual(len(notes), 1)
+            self.assertEqual(mmcif_splitchain.file_names('x', ['A', 'B', 'a', 'b', 'aa', 'AA', 'Aa']),
+                             {'A': 'x_A.cif', 'B': 'x_B.cif', 'a': 'x_a~2.cif', 'b': 'x_b~2.cif',
+                              'aa': 'x_aa.cif', 'AA': 'x_AA~2.cif', 'Aa': 'x_Aa~3.cif'})
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_batched_splitchain_writes_the_same_files(self):  # 7Y7A: 1792 chains
+        texts = [read(n) for n in FIXTURES if n != 'empty_atom_site.cif']
+        texts.append(WWPDB.replace('? 301 HOH A', '? 301 HOH a'))
+        for text in texts:
+            for scheme in (None, 'label'):
+                self.assertEqual(split_files(text, scheme), split_by_filtering(text, scheme))
+        batch = mmcif_splitchain.BATCH
+        mmcif_splitchain.BATCH = 2  # several readings of the input
+        try:
+            for name in ('multichar_chains.cif', 'wwpdb_like.cif'):
+                self.assertEqual(split_files(read(name), 'label'), split_by_filtering(read(name), 'label'))
+        finally:
+            mmcif_splitchain.BATCH = batch
+
+    def test_files_without_author_residue_columns(self):  # 9A1M, an integrative model
+        text = drop_columns(WWPDB, ['auth_seq_id', 'auth_asym_id', 'pdbx_PDB_ins_code'])
+        self.assertEqual(run_tool(mmcif_fixinsert, text, set()), text)
+        self.assertEqual(run_tool(mmcif_delinsertion, text, set()), text)
+        out = rows(run_tool(mmcif_label2auth, text, True, True))
+        self.assertEqual([(a['auth_asym_id'], a['auth_seq_id']) for a in out],
+                         [(a['label_asym_id'], a['label_seq_id'] if a['label_seq_id'] != '.' else '?')
+                          for a in out])
+        chains_only = rows(run_tool(mmcif_label2auth, text, True, False))
+        self.assertNotIn('auth_seq_id', chains_only[0].loop)
+        self.assertEqual([a['auth_asym_id'] for a in chains_only], [a['label_asym_id'] for a in chains_only])
+
+    def test_seqres_without_poly_seq_scheme(self):  # files not from the PDB; 3IRI (sugars only)
+        text = ('data_x\nloop_\n_entity_poly.entity_id\n_entity_poly.pdbx_strand_id\n1 A,C\n2 B\n'
+                'loop_\n_entity_poly_seq.entity_id\n_entity_poly_seq.num\n_entity_poly_seq.mon_id\n'
+                '1 1 MET\n1 2 GLY\n1 2 ALA\n2 1 DA\n2 2 DC\n'
+                'loop_\n_struct_asym.id\n_struct_asym.entity_id\nA 1\nB 2\nC 1\nD 3\n')
+        self.assertEqual(run_tool(mmcif_tofasta, text, True, True), '>x|A\nMG\n>x|B\nAC\n>x|C\nMG\n')
+        self.assertEqual(run_tool(mmcif_tofasta, text, False, True), '>x|ABC\nMGACMG\n')
+        with self.assertRaises(_cif.CIFError) as ctx:
+            run_tool(mmcif_tofasta, 'data_x\n_entry.id x\n', False, True)
+        self.assertIn('no polymer sequence', str(ctx.exception))
 
 
 if __name__ == '__main__':

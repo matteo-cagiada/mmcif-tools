@@ -25,7 +25,10 @@ the sequence is read from the atoms of the first model, ligands and waters
 
 The -multi option splits the different chains into different records in the
 FASTA file. The -seqres option reads the full deposited sequence from
-_pdbx_poly_seq_scheme instead, including residues without coordinates. The
+_pdbx_poly_seq_scheme instead, including residues without coordinates (from
+_entity_poly_seq when a file has no _pdbx_poly_seq_scheme, with the chains
+of _entity_poly.pdbx_strand_id, or of _struct_asym with --label). Where two
+residue types share a position (microheterogeneity), the first is used. The
 two can be combined: -multi,seqres.
 
 Usage:
@@ -99,24 +102,52 @@ def _from_atoms(fhandle, scheme):
 
 
 def _from_seqres(fhandle, scheme):
-    """(structure id, [(chain, [residue names])]) from _pdbx_poly_seq_scheme."""
+    """(structure id, [(chain, [residue names])]) from _pdbx_poly_seq_scheme,
+    else from _entity_poly_seq and the chains of each entity."""
     entry_id, block = None, None
-    chains, found = [], False
-    column = 'pdb_strand_id' if _cif.get_scheme(scheme) == 'auth' else 'asym_id'
-    for ev in _cif.parse(fhandle, ('_pdbx_poly_seq_scheme', '_entry')):
+    chains = []
+    entity_seq, strands, asyms, order, seen = {}, {}, {}, {}, set()
+    auth = _cif.get_scheme(scheme) == 'auth'
+    column = 'pdb_strand_id' if auth else 'asym_id'
+    categories = ('_pdbx_poly_seq_scheme', '_entry', '_entity_poly_seq', '_entity_poly', '_struct_asym')
+    for ev in _cif.parse(fhandle, categories):
         if type(ev) is _cif.Row:
-            if ev.loop.category.lower() == '_entry':
+            category = ev.loop.category.lower()
+            if category == '_entry':
                 entry_id = entry_id or ev.get('id')
-                continue
-            found = True
-            chain = ev[column]
-            if not chains or chains[-1][0] != chain:
-                chains.append((chain, []))
-            chains[-1][1].append(ev['mon_id'])
+            elif category == '_pdbx_poly_seq_scheme':
+                chain = ev[column]
+                position = (ev.get('asym_id'), ev.get('seq_id'))
+                if position[1] is not None:
+                    if position in seen:  # a second residue type at one position (microheterogeneity)
+                        continue
+                    seen.add(position)
+                if not chains or chains[-1][0] != chain:
+                    chains.append((chain, []))
+                chains[-1][1].append(ev['mon_id'])
+            elif category == '_entity_poly_seq':
+                residues = entity_seq.setdefault(ev.get('entity_id'), {})
+                residues.setdefault(ev.get('num'), ev.get('mon_id'))  # first of a microheterogeneity
+            elif category == '_entity_poly':
+                strands[ev.get('entity_id')] = _atoms.parse_ids(ev.get('pdbx_strand_id') or '')
+            elif category == '_struct_asym':
+                asyms.setdefault(ev.get('entity_id'), []).append(ev.get('id'))
+                order.setdefault(ev.get('id'), len(order))
         elif type(ev) is _cif.DataBlock and block is None:
             block = ev.name
-    if not found:
-        raise _cif.CIFError('-seqres needs _pdbx_poly_seq_scheme, which this file does not have')
+    if not chains:  # no _pdbx_poly_seq_scheme (files not from the PDB)
+        found = []
+        for entity, residues in entity_seq.items():
+            names = [residues[n] for n in sorted(residues, key=lambda n: _atoms.as_int(n) or 0)]
+            labels = asyms.get(entity) or []
+            ids = (strands.get(entity) if auth else None) or labels or [entity]
+            for i, chain in enumerate(ids):  # in label chain order, as _pdbx_poly_seq_scheme
+                rank = order.get(labels[i], len(order)) if len(labels) == len(ids) else len(order)
+                found.append((rank, len(found), chain, names))
+        chains = [(chain, names) for _, _, chain, names in sorted(found)]
+    if not chains:
+        raise _cif.CIFError('-seqres: this file has no polymer sequence '
+                            '(_pdbx_poly_seq_scheme or _entity_poly_seq)')
     return entry_id or block or 'PDB', chains
 
 

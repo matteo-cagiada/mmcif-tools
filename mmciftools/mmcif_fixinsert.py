@@ -31,7 +31,9 @@ pdb_fixinsert meets a TER record) and in each model (pdb_fixinsert never
 restarts between models). Chains may have several
 characters and numbers may be negative: -A9,B12,AB-3. Insertion codes only
 exist with author identifiers, so --label is not accepted. The matching
-columns of _atom_site_anisotrop and _struct_conn are updated too.
+columns of _atom_site_anisotrop and _struct_conn are updated too. A file
+without a pdbx_PDB_ins_code column (e.g. an integrative model) has no
+insertion codes and is written unchanged.
 
 Usage:
     mmcif_fixinsert [-<option>] <cif file>
@@ -117,9 +119,21 @@ def _key(chain, resnum, icode, resname):
     return chain, resnum, None if icode in NULLS else icode, resname
 
 
+def _has_codes(source):
+    """True if the _atom_site loop has an insertion code column."""
+    for ev in _cif.parse(source.lines(), _atoms.ATOM_SITE):
+        if type(ev) is _cif.Loop:
+            return 'pdbx_PDB_ins_code' in ev
+    return True  # no atoms: let the usual checks report it
+
+
 def run(fhandle, residues=frozenset(), scheme=None):
     """Yield the events of the file with insertion codes removed."""
     source = _atoms.as_source(fhandle)
+    if not _has_codes(source):  # no insertion code column: nothing to remove
+        for ev in _cif.parse(source.lines(), ()):
+            yield ev
+        return
 
     # First look: new (number, code) of the residues of the first model, for
     # _struct_conn (before _atom_site) and _atom_site_anisotrop.
