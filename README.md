@@ -1,19 +1,21 @@
 # mmcif-tools
 
-Small, single-purpose command-line tools that read and write mmCIF (PDBx/mmCIF) files and chain together with
-Unix pipes: select, delete, edit, convert and inspect structures without leaving the shell. They need only the
-Python standard library (Python 3.9 or newer).
+mmcif-tools is an indipendent project style and much of its tool
+set are inspired by [pdb-tools](https://www.bonvinlab.org/pdb-tools/) (Rodrigues JPGLM, Teixeira
+JMC, Trellet M and Bonvin AMJJ, *F1000Research* 2018, 7:1961). mmcif-ttols ports and expands the PDB-Tools functionalities to the MMcif (PDBx/MMcif) format.
+
+As pdb-tools it includes small, single-purpose command-line tools that read and write mmCIF (PDBx/mmCIF) files and chain together with
+Unix pipes: select, delete, edit, convert and inspect structures without leaving the shell. The package need only the
+Python standard library (Python 3.9 or newer). 
 
 ```bash
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
-**Version 0.1.0, a test release: 52 tools.** mmcif-tools is an independent project. Its style and much of its tool
-set are inspired by [pdb-tools](https://www.bonvinlab.org/pdb-tools/), and it adds tools that only make sense in
-mmCIF: entities, biological assemblies, categories, data blocks, and the two identifier schemes.
+**Version 0.1.0, pre-release: 52 availale tools.** 
 
 They read the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDBe), the AlphaFold DB (ModelCIF), structure
-prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF is not supported.
+prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF are currently not supported.
 
 ## Tools
 
@@ -60,7 +62,7 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 | | `mmcif_tidy` | Rewrite in a uniform, aligned layout |
 | | `mmcif_validate` | Check syntax, coordinates and consistency |
 
-## Usage
+## Usage Examples and Tips
 
 - Each tool takes at most one option (starting with `-`) and one file, and reads stdin when no file is given, so
   tools chain with pipes. Negative numbers need a double dash (`mmcif_shiftres --5`).
@@ -68,6 +70,20 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 - Errors go to stderr as `ERROR!! ...`, with exit status 1.
 - Rows a tool does not change are written back byte-for-byte. In changed rows, only the edited values are
   rewritten, and the other columns keep their alignment.
+
+
+
+## Coming from pdb-tools
+
+Most tools have the pdb-tools name with `mmcif_` for `pdb_` and the same options. The differences:
+
+- `pdb_tocif` / `pdb_fromcif` are `mmcif_frompdb` / `mmcif_topdb`.
+- The segment tools (`pdb_seg`, `pdb_selseg`, `pdb_splitseg`) have no counterpart: mmCIF has no segment identifier,
+  and `label_asym_id` names each molecule (`mmcif_selchain --label`, `mmcif_splitchain --label`).
+- `pdb_chainbows`, `pdb_chainxseg` and `pdb_segxchain` have no counterpart: mmCIF has no TER records. `mmcif_frompdb`
+  uses the TER records of a PDB file to separate molecules and names blank chains, and `mmcif_label2auth -chain`
+  gives each molecule its own author chain.
+- Where pdb-tools behaves differently (or has a bug), the tool's `--help` says so.
 
 ## Things to know about mmCIF
 
@@ -85,19 +101,8 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 - **No fixed columns.** Chain identifiers can be longer than one character, and there are no limits on atom or
   residue numbers. `mmcif_topdb` refuses structures that do not fit the PDB format.
 
-## Coming from pdb-tools
 
-Most tools have the pdb-tools name with `mmcif_` for `pdb_` and the same options. The differences:
-
-- `pdb_tocif` / `pdb_fromcif` are `mmcif_frompdb` / `mmcif_topdb`.
-- The segment tools (`pdb_seg`, `pdb_selseg`, `pdb_splitseg`) have no counterpart: mmCIF has no segment identifier,
-  and `label_asym_id` names each molecule (`mmcif_selchain --label`, `mmcif_splitchain --label`).
-- `pdb_chainbows`, `pdb_chainxseg` and `pdb_segxchain` have no counterpart: mmCIF has no TER records. `mmcif_frompdb`
-  uses the TER records of a PDB file to separate molecules and names blank chains, and `mmcif_label2auth -chain`
-  gives each molecule its own author chain.
-- Where pdb-tools behaves differently (or has a bug), the tool's `--help` says so.
-
-## Install
+## Installation
 
 ```bash
 git clone https://github.com/matteo-cagiada/mmcif-tools.git
@@ -108,28 +113,8 @@ python -m pip install .
 There are no runtime dependencies. For development, `python -m pip install -e ".[test]"` installs the package in
 place and adds pdb-tools, which the tests use as an independent cross-check.
 
-## Tests
 
-```bash
-python -m unittest discover -s tests -v
-```
-
-- **Default run:** the hand-written fixtures in `tests/data/`. It passes with the standard library alone; the
-  pdb-tools cross-check is skipped when pdb-tools is missing.
-- **Real entries:** 12 entries (about 10 MB, listed in `tests/real_set.txt`, including an AlphaFold DB model) are
-  included in the run once they have been fetched:
-
-  ```bash
-  python tests/fetch_real.py
-  ```
-
-- **Benchmark:** a synthetic 1M-atom structure, generated in memory:
-
-  ```bash
-  python tests/bench_cif.py
-  ```
-
-## Extra scripts
+## Extra tools
 
 `tools/` holds scripts that are not part of mmcif-tools and are not installed with it.
 
@@ -152,5 +137,4 @@ How to cite mmcif-tools is in [CITATION.cff](CITATION.cff); the changes between 
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE), and [NOTICE](NOTICE) for the credit to pdb-tools (Rodrigues JPGLM, Teixeira
-JMC, Trellet M and Bonvin AMJJ, *F1000Research* 2018, 7:1961).
+Apache-2.0. See [LICENSE](LICENSE). 
