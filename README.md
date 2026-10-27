@@ -140,7 +140,8 @@ python -m pip install .
 ```
 
 There are no runtime dependencies. `python tools/smoke_test.py` then checks the installation: every command runs,
-and a few pipelines give the expected results.
+and a few pipelines give the expected results. For tab completion of the `mmcif_*` commands, open a new terminal
+after installing (or run `rehash` in an open zsh terminal).
 
 ## Extra tools
 
