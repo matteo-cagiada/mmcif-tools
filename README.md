@@ -166,9 +166,8 @@ How to cite mmcif-tools is in [CITATION.cff](CITATION.cff); the changes between 
 
 ## Acknowledgements
 
-Most of the code and documentation of mmcif-tools was written with [Claude Code](https://claude.com/claude-code),
-Anthropic's AI coding assistant, under the direction of the author, who designed the tools and reviewed and tested
-them.
+Most of the code of mmcif-tools has been written with [Claude Code](https://claude.com/claude-code),
+Anthropic's AI coding assistant, The author design the projects, tools and test to guarantee the quality of the tool.
 
 ## License
 
