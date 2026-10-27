@@ -38,7 +38,7 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 | | `mmcif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
 | | `mmcif_selmodel` | Keep models (`-1,3`) |
 | | `mmcif_head` | Keep the first N atoms (`-100`) |
-| | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`) |
+| | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`); `-basic` also entry, cell, entities |
 | | `mmcif_intersect` | Keep the atoms of the first file found in all the others |
 | Edit | `mmcif_chain` / `mmcif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |
 | | `mmcif_reres` / `mmcif_shiftres` | Renumber residues from a number / shift them by a number |
@@ -102,6 +102,10 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
 - After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
+- Most metadata of PDB entries (validation reports, secondary structure, sequence schemes, ...) refers to residues
+  by number and is not updated by the edit tools. To drop it, start a pipeline with `mmcif_keepcoord` (coordinates
+  only, as `pdb_keepcoord`) or `mmcif_keepcoord -basic` (also the entry, unit cell, entities, sequences and
+  chemical components).
 
 ## Coming from pdb-tools
 

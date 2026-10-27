@@ -528,11 +528,29 @@ the ATOM/HETATM and CONECT records that pdb_keepcoord keeps); every other
 category is removed, _atom_site_anisotrop included (pdb_keepcoord drops
 ANISOU records too).
 
+With -basic, it also keeps the categories that programs reading mmCIF often
+use and that edits do not make wrong, as they do not point at atoms or
+residue numbers:
+
+    _entry                     the entry id
+    _cell, _symmetry           the unit cell and space group
+    _entity, _entity_poly,     the molecules and their sequences
+    _entity_poly_seq
+    _chem_comp, _atom_type     the chemical components and elements
+
+Two things can still disagree after edits: _entity keeps describing
+molecules whose atoms a later tool removes, and _entity_poly.pdbx_strand_id
+names author chains, which chain renames do not update. Everything else
+(validation reports, secondary structure, sequence schemes, sites,
+assemblies, ...) refers to residues by number, the other tools do not update
+it, and after edits it no longer matches the atoms.
+
 Usage:
-    mmcif_keepcoord <cif file>
+    mmcif_keepcoord [-basic] <cif file>
 
 Example:
-    mmcif_keepcoord 1abc.cif
+    mmcif_keepcoord 1abc.cif          # coordinates only
+    mmcif_keepcoord -basic 1abc.cif   # also entry, cell, entities, components
 
 This program is part of the mmcif-tools suite.
 ```

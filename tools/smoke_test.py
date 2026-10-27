@@ -83,6 +83,7 @@ CHECKS = [
     ([['mmcif_reres', '-1'], ['mmcif_cat', '-_atom_site.auth_seq_id']], 'auth_seq_id\n1\n1\n2\n2\n3\n3\n'),
     ([['mmcif_fixinsert'], ['mmcif_cat', '-_atom_site.auth_seq_id']], '11\n12\n12\n201'),
     ([['mmcif_info']], 'Entity:\t2\tnon-polymer'),
+    ([['mmcif_keepcoord', '-basic'], ['mmcif_info']], 'Entity:\t1\tpolymer'),
     ([['mmcif_topdb']], 'TER       7      SER A  11'),
     ([['mmcif_tidy'], ['mmcif_validate']], 'the file looks valid'),
 ]
