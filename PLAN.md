@@ -270,6 +270,11 @@ Decided for phase 4 (2026-10-24):
     `tests/` stays in the developers' working copy (git-ignored) and in the history up to commit 36e75f3;
     the `[test]` extra is gone. CI runs `tools/smoke_test.py` (every command, a few pipelines) and the
     tool-reference check on Python 3.9-3.15, Linux, macOS and Windows.
+22. **`mmcif_delmeta`** (2026-10-27): a command of its own for the common first step "drop the metadata
+    that edits make stale", instead of an option of `mmcif_keepcoord` (which stays the counterpart of
+    `pdb_keepcoord`). It keeps `_atom_site`, `_atom_site_anisotrop`, `_struct_conn`, `_entry`, `_cell`,
+    `_symmetry`, `_entity`, `_entity_poly`, `_entity_poly_seq`, `_chem_comp` and `_atom_type`; `-all`
+    keeps the atoms, anisotropic B-factors and links only. 53 tools.
 
 ## 8. Phase 0 status (2026-10-23): done
 

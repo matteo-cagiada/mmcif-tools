@@ -10,10 +10,10 @@ together with Unix pipes: select, delete, edit, convert and inspect structures w
 package needs only the Python standard library (Python 3.9 or newer).
 
 ```bash
-mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
+mmcif_fetch 1brs | mmcif_delmeta | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.1.0, pre-release: 52 available tools**
+**CURRENT VERSION: Version 0.1.0, pre-release: 53 available tools**
 
 
 ## Tools
@@ -38,7 +38,8 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 | | `mmcif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
 | | `mmcif_selmodel` | Keep models (`-1,3`) |
 | | `mmcif_head` | Keep the first N atoms (`-100`) |
-| | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`); `-basic` also entry, cell, entities |
+| | `mmcif_delmeta` | Delete the metadata that edits make stale; keep atoms, links, entry, cell, entities (`-all`: atoms only) |
+| | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`), as `pdb_keepcoord` |
 | | `mmcif_intersect` | Keep the atoms of the first file found in all the others |
 | Edit | `mmcif_chain` / `mmcif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |
 | | `mmcif_reres` / `mmcif_shiftres` | Renumber residues from a number / shift them by a number |
@@ -67,9 +68,30 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 
 ## Usage examples and tips
 
+### Start with `mmcif_delmeta`
+
+A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. Most of the rest
+refers to residues by chain and number: validation reports, secondary structure, sequence schemes, binding sites,
+assemblies, and more. The edit tools keep the atoms and their links consistent, but not these tables, so after
+renumbering or deleting residues they describe a structure that is no longer there. Simulation and prediction
+programs rarely read them anyway.
+
+`mmcif_delmeta` deletes that metadata and keeps what stays true: the atoms, their links and anisotropic B-factors,
+the entry id, the unit cell and space group, the entities and their sequences, and the chemical components. For
+4HHB that is 10 categories instead of 72, and the file is still valid mmCIF. Use it as the first step of a
+pipeline:
+
+```bash
+mmcif_fetch 4hhb | mmcif_delmeta | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 > 4hhb_clean.cif
+```
+
+`mmcif_delmeta -all` keeps only the atoms and links, and `mmcif_keepcat` keeps exactly the categories you list.
+
+### More examples
+
 ```bash
 # A clean protein for docking or simulations: one conformer, no ligands or waters, an aligned layout
-mmcif_fetch 4hhb | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_tidy > 4hhb_protein.cif
+mmcif_fetch 4hhb | mmcif_delmeta | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_tidy > 4hhb_protein.cif
 
 # Chain A with its heme, numbered from 1, as a PDB file for programs that need one
 mmcif_fetch 4hhb | mmcif_selchain -A | mmcif_delentity -water | mmcif_reres -1 | mmcif_topdb > 4hhb_A.pdb
@@ -87,9 +109,11 @@ mmcif_cat -_atom_site.auth_asym_id,auth_seq_id,label_comp_id,B_iso_or_equiv 4hhb
 # Residues numbered along the deposited sequence, and one author chain per molecule
 mmcif_label2auth 4hhb.cif > 4hhb_by_sequence.cif
 
-# A leaner file without the PDB's validation reports and secondary structure
+# Delete only some categories: here the PDB's validation reports and secondary structure
 mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb_lean.cif
 ```
+
+### Tips
 
 - Each tool takes at most one option (starting with `-`) and one file, and reads stdin when no file is given, so
   tools chain with pipes. Negative numbers need a double dash (`mmcif_shiftres --5`).
@@ -102,10 +126,6 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
 - After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
-- Most metadata of PDB entries (validation reports, secondary structure, sequence schemes, ...) refers to residues
-  by number and is not updated by the edit tools. To drop it, start a pipeline with `mmcif_keepcoord` (coordinates
-  only, as `pdb_keepcoord`) or `mmcif_keepcoord -basic` (also the entry, unit cell, entities, sequences and
-  chemical components).
 
 ## Coming from pdb-tools
 

@@ -1,11 +1,11 @@
 # mmcif-tools: tool reference
 
-Version 0.1.0, 52 tools. Generated from the tools' `--help` texts by `python tools/make_docs.py`; do not edit by hand.
+Version 0.1.0, 53 tools. Generated from the tools' `--help` texts by `python tools/make_docs.py`; do not edit by hand.
 
 | Group | Tools |
 |---|---|
 | Fetch / convert | [`mmcif_fetch`](#mmcif_fetch), [`mmcif_topdb`](#mmcif_topdb), [`mmcif_frompdb`](#mmcif_frompdb) |
-| Select / delete | [`mmcif_selchain`](#mmcif_selchain), [`mmcif_delchain`](#mmcif_delchain), [`mmcif_selres`](#mmcif_selres), [`mmcif_delres`](#mmcif_delres), [`mmcif_selresname`](#mmcif_selresname), [`mmcif_delresname`](#mmcif_delresname), [`mmcif_selatom`](#mmcif_selatom), [`mmcif_selelem`](#mmcif_selelem), [`mmcif_delelem`](#mmcif_delelem), [`mmcif_selhetatm`](#mmcif_selhetatm), [`mmcif_delhetatm`](#mmcif_delhetatm), [`mmcif_selentity`](#mmcif_selentity), [`mmcif_delentity`](#mmcif_delentity), [`mmcif_selaltloc`](#mmcif_selaltloc), [`mmcif_selmodel`](#mmcif_selmodel), [`mmcif_head`](#mmcif_head), [`mmcif_keepcoord`](#mmcif_keepcoord), [`mmcif_intersect`](#mmcif_intersect) |
+| Select / delete | [`mmcif_selchain`](#mmcif_selchain), [`mmcif_delchain`](#mmcif_delchain), [`mmcif_selres`](#mmcif_selres), [`mmcif_delres`](#mmcif_delres), [`mmcif_selresname`](#mmcif_selresname), [`mmcif_delresname`](#mmcif_delresname), [`mmcif_selatom`](#mmcif_selatom), [`mmcif_selelem`](#mmcif_selelem), [`mmcif_delelem`](#mmcif_delelem), [`mmcif_selhetatm`](#mmcif_selhetatm), [`mmcif_delhetatm`](#mmcif_delhetatm), [`mmcif_selentity`](#mmcif_selentity), [`mmcif_delentity`](#mmcif_delentity), [`mmcif_selaltloc`](#mmcif_selaltloc), [`mmcif_selmodel`](#mmcif_selmodel), [`mmcif_head`](#mmcif_head), [`mmcif_delmeta`](#mmcif_delmeta), [`mmcif_keepcoord`](#mmcif_keepcoord), [`mmcif_intersect`](#mmcif_intersect) |
 | Edit | [`mmcif_chain`](#mmcif_chain), [`mmcif_rplchain`](#mmcif_rplchain), [`mmcif_reres`](#mmcif_reres), [`mmcif_shiftres`](#mmcif_shiftres), [`mmcif_fixinsert`](#mmcif_fixinsert), [`mmcif_delinsertion`](#mmcif_delinsertion), [`mmcif_reatom`](#mmcif_reatom), [`mmcif_rplresname`](#mmcif_rplresname), [`mmcif_uniqname`](#mmcif_uniqname), [`mmcif_element`](#mmcif_element), [`mmcif_b`](#mmcif_b), [`mmcif_occ`](#mmcif_occ) |
 | Identifiers | [`mmcif_label2auth`](#mmcif_label2auth), [`mmcif_auth2label`](#mmcif_auth2label) |
 | Models, files and assemblies | [`mmcif_splitchain`](#mmcif_splitchain), [`mmcif_splitmodel`](#mmcif_splitmodel), [`mmcif_mkensemble`](#mmcif_mkensemble), [`mmcif_chkensemble`](#mmcif_chkensemble), [`mmcif_merge`](#mmcif_merge), [`mmcif_assembly`](#mmcif_assembly) |
@@ -516,6 +516,49 @@ Example:
 This program is part of the mmcif-tools suite.
 ```
 
+### mmcif_delmeta
+
+Deletes the metadata that edits make stale, keeping the coordinates and the metadata that stays true.
+
+```text
+Deletes the metadata that edits make stale, keeping the coordinates and the
+metadata that stays true.
+
+PDB entries carry dozens of categories that refer to residues by chain and
+number: validation reports, secondary structure, sequence schemes, sites,
+assemblies, ... The other tools do not update them, so after an edit they no
+longer match the atoms, and most programs that read mmCIF ignore them anyway.
+This tool keeps:
+
+    _atom_site                 the atoms
+    _atom_site_anisotrop       their anisotropic B-factors
+    _struct_conn               the links (disulfides, metal sites, ...)
+    _entry                     the entry id
+    _cell, _symmetry           the unit cell and space group
+    _entity, _entity_poly,     the molecules and their sequences
+    _entity_poly_seq
+    _chem_comp, _atom_type     the chemical components and elements
+
+and deletes every other category. With -all, only the atoms, anisotropic
+B-factors and links are kept (mmcif_keepcoord also drops the anisotropic
+B-factors, as pdb_keepcoord drops ANISOU records).
+
+Run it first in a pipeline, before the edits. Two kept items can still
+disagree after edits: _entity keeps describing molecules whose atoms a later
+tool removes, and _entity_poly.pdbx_strand_id names author chains, which
+chain renames do not update.
+
+Usage:
+    mmcif_delmeta [-all] <cif file>
+
+Example:
+    mmcif_delmeta 1abc.cif > 1abc_clean.cif
+    mmcif_delmeta 1abc.cif | mmcif_delentity -non-polymer,water > protein.cif
+    mmcif_delmeta -all 1abc.cif > atoms_only.cif
+
+This program is part of the mmcif-tools suite.
+```
+
 ### mmcif_keepcoord
 
 Removes all non-coordinate categories from an mmCIF file.
@@ -526,31 +569,15 @@ Removes all non-coordinate categories from an mmCIF file.
 Keeps the data_ line, _atom_site and _struct_conn (the mmCIF counterparts of
 the ATOM/HETATM and CONECT records that pdb_keepcoord keeps); every other
 category is removed, _atom_site_anisotrop included (pdb_keepcoord drops
-ANISOU records too).
-
-With -basic, it also keeps the categories that programs reading mmCIF often
-use and that edits do not make wrong, as they do not point at atoms or
-residue numbers:
-
-    _entry                     the entry id
-    _cell, _symmetry           the unit cell and space group
-    _entity, _entity_poly,     the molecules and their sequences
-    _entity_poly_seq
-    _chem_comp, _atom_type     the chemical components and elements
-
-Two things can still disagree after edits: _entity keeps describing
-molecules whose atoms a later tool removes, and _entity_poly.pdbx_strand_id
-names author chains, which chain renames do not update. Everything else
-(validation reports, secondary structure, sequence schemes, sites,
-assemblies, ...) refers to residues by number, the other tools do not update
-it, and after edits it no longer matches the atoms.
+ANISOU records too). To keep the metadata that edits do not make stale
+(entry, unit cell, entities, sequences, chemical components), use
+mmcif_delmeta instead.
 
 Usage:
-    mmcif_keepcoord [-basic] <cif file>
+    mmcif_keepcoord <cif file>
 
 Example:
-    mmcif_keepcoord 1abc.cif          # coordinates only
-    mmcif_keepcoord -basic 1abc.cif   # also entry, cell, entities, components
+    mmcif_keepcoord 1abc.cif
 
 This program is part of the mmcif-tools suite.
 ```

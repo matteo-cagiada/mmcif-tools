@@ -40,7 +40,7 @@ GROUPS = [
     ('Fetch / convert', ['fetch', 'topdb', 'frompdb']),
     ('Select / delete', ['selchain', 'delchain', 'selres', 'delres', 'selresname', 'delresname',
                          'selatom', 'selelem', 'delelem', 'selhetatm', 'delhetatm', 'selentity',
-                         'delentity', 'selaltloc', 'selmodel', 'head', 'keepcoord', 'intersect']),
+                         'delentity', 'selaltloc', 'selmodel', 'head', 'delmeta', 'keepcoord', 'intersect']),
     ('Edit', ['chain', 'rplchain', 'reres', 'shiftres', 'fixinsert', 'delinsertion', 'reatom',
               'rplresname', 'uniqname', 'element', 'b', 'occ']),
     ('Identifiers', ['label2auth', 'auth2label']),

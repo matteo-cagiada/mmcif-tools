@@ -7,7 +7,7 @@ command names and options may still change.
 
 The first version for testers. It is not on PyPI or conda-forge yet; install it from the repository.
 
-- **52 command-line tools** (`mmcif_*`), in seven groups: fetch and convert, select and delete, edit,
+- **53 command-line tools** (`mmcif_*`), in seven groups: fetch and convert, select and delete, edit,
   identifiers, models/files/assemblies, categories and data blocks, inspect and format. See
   [docs/tools.md](docs/tools.md).
 - **mmCIF-specific tools:**
@@ -52,8 +52,10 @@ The first version for testers. It is not on PyPI or conda-forge yet; install it 
   - `mmcif_selaltloc` writes a file without an altloc column unchanged; `mmcif_b` / `mmcif_occ` add their
     column when it is missing; "missing column" errors name the mmCIF column (`type_symbol`, `group_PDB`, ...).
   - `mmcif_merge`, `mmcif_mkensemble` and `mmcif_topdb` say in their help that they use the first data block.
-- **`mmcif_keepcoord -basic`** keeps the coordinates plus the metadata that edits do not make wrong (entry, unit
-  cell, entities and sequences, chemical components), for files meant for simulation or prediction programs.
+- **`mmcif_delmeta`** deletes the metadata that edits make stale (validation reports, secondary structure, sequence
+  schemes, sites, assemblies, ...) and keeps the atoms, links, entry, unit cell, entities and sequences, and
+  chemical components; `-all` keeps only the atoms and links. A first step for files meant for simulation or
+  prediction programs.
 - **Checking an installation:** `python tools/smoke_test.py` runs every command and a few pipelines. The full test
   suite stays with the developers and is not part of the public repository.
 - **Known limitation:** after an edit, categories other than `_atom_site`, `_atom_site_anisotrop` and
