@@ -12,12 +12,13 @@ Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
-**Version 0.1.0, pre-release: 52 availale tools.** 
+**CURRENT VERSION: Version 0.1.0, pre-release: 52 available tools** 
 
-They read the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDBe), the AlphaFold DB (ModelCIF), structure
-prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF are currently not supported.
 
 ## Tools
+
+mmcif_tools reads the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDBe), the AlphaFold DB (ModelCIF), structure
+prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF are currently not supported.
 
 The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 
@@ -62,7 +63,7 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 | | `mmcif_tidy` | Rewrite in a uniform, aligned layout |
 | | `mmcif_validate` | Check syntax, coordinates and consistency |
 
-## Usage Examples and Tips
+## Usage examples and tips
 
 - Each tool takes at most one option (starting with `-`) and one file, and reads stdin when no file is given, so
   tools chain with pipes. Negative numbers need a double dash (`mmcif_shiftres --5`).
@@ -70,8 +71,6 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 - Errors go to stderr as `ERROR!! ...`, with exit status 1.
 - Rows a tool does not change are written back byte-for-byte. In changed rows, only the edited values are
   rewritten, and the other columns keep their alignment.
-
-
 
 ## Coming from pdb-tools
 
@@ -112,7 +111,6 @@ python -m pip install .
 
 There are no runtime dependencies. For development, `python -m pip install -e ".[test]"` installs the package in
 place and adds pdb-tools, which the tests use as an independent cross-check.
-
 
 ## Extra tools
 
