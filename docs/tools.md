@@ -537,17 +537,29 @@ longer match the atoms. This tool keeps:
     _exptl, _refine, _reflns,  the method and resolution
     _em_3d_reconstruction
     _pdbx_audit_revision_history  the release and revision dates
-    _entity, _entity_poly,     the molecules and their sequences
-    _entity_poly_seq
+    _entity, _entity_poly,     the molecules, their sequences, and the
+    _entity_poly_seq,          ligands
+    _pdbx_entity_nonpoly
     _struct_asym               the chains (label_asym_id) of each molecule
-    _chem_comp, _atom_type     the chemical components and elements
+    _pdbx_poly_seq_scheme      the residues of each chain along its sequence
+    _pdbx_struct_mod_residue   the modified residues
+    _chem_comp, _chem_comp_atom,  the chemical components, their atoms and
+    _chem_comp_bond, _atom_type   bonds, and the elements
 
-and deletes every other category. These are what AlphaFold and ColabFold
-read from template files, for example. The kept tables are brought in step
-with the atoms: rows of chains (_struct_asym) and entities that have no
-atoms left are removed, and _entity.pdbx_number_of_molecules and
-_entity_poly.pdbx_strand_id are recomputed. So run it last in a pipeline,
-after the edits.
+and deletes every other category. These are what structure prediction
+programs (AlphaFold, ColabFold, OpenFold3, Boltz, Chai-1, Protenix, BioEmu)
+and MD preparation programs (OpenMM, PDBFixer) read from a file.
+
+The kept tables are brought in step with the atoms: rows of chains and
+entities with no atoms left are removed, and so are the atom and bond lists
+of components whose atoms were renamed. Modified residues are looked up in
+the atoms by their label identifiers and get the current author numbers
+(rows of residues no longer there are removed).
+_entity.pdbx_number_of_molecules and _entity_poly.pdbx_strand_id are
+recomputed, and _pdbx_poly_seq_scheme is rebuilt from the sequences and the
+atoms (it is added when missing; residues without atoms get no author
+number). So run it last in a pipeline, after the edits. Tables that cannot
+be checked (no atoms, no label identifiers) are kept as they are.
 
 With -all, only the atoms, anisotropic B-factors and links are kept
 (mmcif_keepcoord also drops the anisotropic B-factors, as pdb_keepcoord

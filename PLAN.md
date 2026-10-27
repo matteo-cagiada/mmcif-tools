@@ -285,6 +285,19 @@ Decided for phase 4 (2026-10-24):
       `_chem_comp` is not pruned: AlphaFold needs the type of every residue of the sequence, resolved or not.
       It is therefore the *last* step of a pipeline. Checked by re-implementing those requirements (AlphaFold's
       own code was not run) on the stress-test entries.
+    - **Other predictors and MD programs** (same day; their code read as text, not run): Boltz, Chai-1 and
+      Protenix need nothing more. OpenFold3 requires `_pdbx_poly_seq_scheme` (asym_id -> entity_id), so it is
+      rebuilt as AlphaFold 3 rebuilds a missing one: one row per `_entity_poly_seq` row and chain, with the author
+      number of the first-model residue at that label_seq_id (the label one without author columns), or `.`
+      (and `?` author columns) without atoms. A file without sequences or label ids keeps its table as it is.
+      On the 300 stress entries, unedited, the rebuilt table equals the PDB's for residues with atoms, except
+      where the PDB's records author names or numbers that `_atom_site` does not have (7NRF, 108D, 7Y7A).
+      BioEmu2 needs `_pdbx_entity_nonpoly` for ligands (pruned by entity). OpenMM >= 8.3 and MDTraj >= 1.11 read
+      `_chem_comp_bond` for ligand bonds (192 of 200 RCSB entries have it, with `_chem_comp_atom`); both are kept,
+      minus the components whose heavy-atom names in `_atom_site` are not all in their definition (after
+      `mmcif_uniqname`; hydrogens are left out, as NMR entries name terminal ones outside the CCD). PDBFixer and
+      BioEmu2 read `_pdbx_struct_mod_residue`: rows are found by label ids and get the current author ids, or
+      are matched on the shared ids, and removed when their residue is gone.
 
 ## 8. Phase 0 status (2026-10-23): done
 

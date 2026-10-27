@@ -78,22 +78,38 @@ programs rarely read them anyway.
 
 `mmcif_delmeta` deletes that metadata and keeps what stays true: the atoms, their links and anisotropic B-factors;
 the entry id, method, resolution and release dates; the unit cell and space group; the entities, chains and
-sequences; and the chemical components. It also brings these tables in step with the atoms: chains and entities
-with no atoms left are removed, and the number of molecules and the chains of each entity are recomputed. For
-4HHB that is 14 categories instead of 72, and the file is still valid mmCIF. Run it last, after the edits:
+sequences; the ligands and modified residues; and the chemical components with their atoms and bonds. It also
+brings these tables in step with the atoms: chains, entities and modified residues with no atoms left are removed,
+the number of molecules and the chains of each entity are recomputed, modified residues get their current author
+numbers, and the table that places each chain's residues on its sequence (`_pdbx_poly_seq_scheme`) is rebuilt.
+For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF. Run it last, after the edits:
 
 ```bash
 mmcif_fetch 4hhb | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 | mmcif_delmeta > 4hhb_clean.cif
 ```
 
-The kept categories are the ones AlphaFold and ColabFold read from template files, so this also makes templates.
-Without the last step, a file keeps the `_struct_asym` rows of the chains you deleted, and AlphaFold cannot read it:
+The kept categories are the ones structure prediction programs read from template or input files (AlphaFold 2
+and 3, ColabFold, OpenFold3, Boltz, Chai-1, Protenix, BioEmu), and MD preparation programs from structures (OpenMM,
+PDBFixer). Without the last step, a file keeps the `_struct_asym` rows of the chains you deleted, and AlphaFold
+cannot read it:
 
 ```bash
 mmcif_fetch 1ubi | mmcif_selchain -A | mmcif_delentity -water | mmcif_delmeta > templates/1ubi.cif
 ```
 
 `mmcif_delmeta -all` keeps only the atoms and links, and `mmcif_keepcat` keeps exactly the categories you list.
+
+### Files for prediction and MD programs
+
+- **AlphaFold 3** templates must hold a single protein chain: select it with `mmcif_selchain` (ligands may stay).
+- **Boltz-2 and OpenFold3** name template chains by their label id (`_struct_asym.id`), not the author chain. To
+  see which is which: `mmcif_cat -_atom_site.label_asym_id,auth_asym_id file.cif | sort -u`.
+- **Renumber the author numbers only** (the default of `mmcif_reres` and `mmcif_shiftres`). These programs place
+  residues on the sequence by `label_seq_id`, which `--label` renumbering changes.
+- **Residues deleted inside a chain are still in the sequence**: prediction programs treat them as unresolved, and
+  PDBFixer rebuilds them as missing residues. `mmcif_delmeta -all` drops the sequences as well.
+- **OpenMM takes `_cell` as the periodic box.** Cryo-EM and NMR entries often carry a placeholder cell of 1 Å;
+  remove it with `mmcif_delcat -_cell,_symmetry`, or set the box when solvating.
 
 ### More examples
 
