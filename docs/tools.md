@@ -46,8 +46,8 @@ Converts the coordinates of an mmCIF file to the PDB format.
 Converts the coordinates of an mmCIF file to the PDB format.
 
 As pdb_fromcif, writes the ATOM/HETATM records of _atom_site (with MODEL /
-ENDMDL records when there are several models) and END; other categories are
-not converted. Chains, residue numbers and names are auth identifiers,
+ENDMDL records when there are several models) and END; other categories,
+and data blocks after the first, are not converted. Chains, residue numbers and names are auth identifiers,
 falling back to label ones when a file lacks them (with --label, label ones
 are used). Atom serials restart at 1 in each model. Unlike pdb_fromcif, a
 TER record follows the last residue of each polymer (atoms with a
@@ -458,7 +458,8 @@ The choice is made per residue, so a residue modelled as two different
 residue types (e.g. SER/THR) is never mixed. Atoms keep their order, and
 rows of _atom_site_anisotrop of removed atoms are removed too. Links
 (_struct_conn) to a removed conformer are removed, and links to a kept one
-lose their altloc label, as the atom does.
+lose their altloc label, as the atom does. A file without a label_alt_id
+column has no alternate locations and is written unchanged.
 
 Usage:
     mmcif_selaltloc [-<altloc>] <cif file>
@@ -499,9 +500,10 @@ Keeps the first N atoms (_atom_site rows) of an mmCIF file.
 ```text
 Keeps the first N atoms (_atom_site rows) of an mmCIF file.
 
-Atoms are counted over the whole file, across models. Unlike pdb_head, which
-outputs nothing but the first N ATOM/HETATM lines, the rest of the file
-(metadata categories) is kept, so the output is still a complete mmCIF file;
+Atoms are counted over the whole file, across models and data blocks.
+Unlike pdb_head, which outputs nothing but the first N ATOM/HETATM lines,
+the rest of the file (metadata categories) is kept, so the output is still
+a complete mmCIF file;
 rows of _atom_site_anisotrop and _struct_conn that refer to removed atoms
 are removed.
 
@@ -826,8 +828,8 @@ Sets the temperature factor (_atom_site.B_iso_or_equiv) of all atoms (default 10
 Sets the temperature factor (_atom_site.B_iso_or_equiv) of all atoms
 (default 10.0).
 
-Values are written with two decimals. Anisotropic factors
-(_atom_site_anisotrop) are not changed, as in pdb_b.
+Values are written with two decimals; a file without the column gets it.
+Anisotropic factors (_atom_site_anisotrop) are not changed, as in pdb_b.
 
 Usage:
     mmcif_b -<bfactor> <cif file>
@@ -845,7 +847,7 @@ Sets the occupancy (_atom_site.occupancy) of all atoms (default 1.0).
 ```text
 Sets the occupancy (_atom_site.occupancy) of all atoms (default 1.0).
 
-Values are written with two decimals.
+Values are written with two decimals; a file without the column gets it.
 
 Usage:
     mmcif_occ -<occupancy> <cif file>
@@ -994,11 +996,11 @@ Merges several mmCIF files into one multi-model (ensemble) file.
 ```text
 Merges several mmCIF files into one multi-model (ensemble) file.
 
-As pdb_mkensemble, the n-th file becomes model n (all its atoms, whatever
-their model numbers), the provenance of each model is written at the top
-(as comment lines), the other categories are dropped except the
-_struct_conn of the first file, and the models are not checked against
-each other (see mmcif_chkensemble).
+As pdb_mkensemble, the n-th file becomes model n (all the atoms of its
+first data block, whatever their model numbers), the provenance of each
+model is written at the top (as comment lines), the other categories are
+dropped except the _struct_conn of the first file, and the models are not
+checked against each other (see mmcif_chkensemble).
 
 The _atom_site loop has the columns of all files (missing values are
 '?'), pdbx_PDB_model_num is added if needed, and atom ids are renumbered
@@ -1049,7 +1051,8 @@ several data blocks, so instead the output is the first file with the atoms
 of all the others added to its _atom_site loop (which gets the columns of
 all files; missing values are '?'). The atoms of the first file keep their
 ids, those of the next files are renumbered after them. Only _atom_site is
-taken from the other files: their metadata, _atom_site_anisotrop and
+taken from the other files (from their first data block, added to the
+first data block of the first file): their metadata, _atom_site_anisotrop and
 _struct_conn rows are not merged, and _entity / _struct_asym are not
 updated.
 

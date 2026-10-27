@@ -284,8 +284,8 @@ class Row:
         `loop` only appends columns to this row's loop, the row keeps its
         original text and the new values are added at the end of the line.
         """
-        values = values or {}
-        new_values = [values[c] if c in values else self.get(c, '?') for c in loop.columns]
+        given = {c.lower(): v for c, v in (values or {}).items()}  # tags are case-insensitive
+        new_values = [given[c.lower()] if c.lower() in given else self.get(c, '?') for c in loop.columns]
         new_values = [v if isinstance(v, str) else str(v) for v in new_values]
         n = len(self.loop.columns)
         if (self.text and not self.loop.pairs and len(loop.columns) >= n

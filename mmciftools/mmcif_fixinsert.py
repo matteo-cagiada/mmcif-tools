@@ -148,12 +148,18 @@ def run(fhandle, residues=frozenset(), scheme=None):
                     break
             new = fix(values)
             if new is not None:
-                changes[_key(*where(values))] = new
+                key = _key(*where(values))
+                changes[key] = new
+                # also without the residue name, for rows that have none (e.g. written by gemmi)
+                changes.setdefault(key[:3] + (None,), new)
         elif type(ev) is _cif.Loop:
             fields = _atoms.Fields(ev, 'auth')
             fix = _fixer(fields, residues)
             where = _atoms.getter(fields.chain, fields.resnum, fields.icode, fields.resname)
 
+    # Anisotropic rows follow their atom (by id): models may hold different residues.
+    has_aniso = any(type(ev) is _cif.Loop for ev in _cif.parse(source.lines(), _atoms.ANISOTROP))
+    by_id = {}
     kind = None
     for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)):
         etype = type(ev)
@@ -165,6 +171,15 @@ def run(fhandle, residues=frozenset(), scheme=None):
                         ev[resnum_col] = new[0]
                     if new[1] is not None:
                         ev[icode_col] = new[1]
+                    if has_aniso and id_pos is not None:
+                        by_id[ev.values[id_pos]] = new
+            elif kind == _atoms.ANISOTROP and by_id and aniso_id is not None and ev.values[aniso_id] in by_id:
+                new = by_id[ev.values[aniso_id]]
+                c_pos, r_pos, i_pos, n_pos = refs[0]
+                if r_pos is not None and new[0] != ev.values[r_pos]:
+                    ev[ev.loop.columns[r_pos]] = new[0]
+                if i_pos is not None and new[1] is not None and new[1] != ev.values[i_pos]:
+                    ev[ev.loop.columns[i_pos]] = new[1]
             elif kind is not None:
                 for c_pos, r_pos, i_pos, n_pos in refs:
                     if r_pos is None:
@@ -185,10 +200,11 @@ def run(fhandle, residues=frozenset(), scheme=None):
             if kind == _atoms.ATOM_SITE:
                 fields = _atoms.Fields(ev, 'auth')
                 fix = _fixer(fields, residues)
-                resnum_pos = fields.resnum
+                resnum_pos, id_pos = fields.resnum, fields.id
                 resnum_col, icode_col = ev.columns[fields.resnum], ev.columns[fields.icode]
             else:
                 refs = _atoms._reference_columns(ev, 'auth')
+                aniso_id = ev.index('id') if kind == _atoms.ANISOTROP and 'id' in ev else None
         elif etype is _cif.LoopEnd:
             kind = None
         yield ev

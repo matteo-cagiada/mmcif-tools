@@ -17,6 +17,7 @@
 
 """Unit tests for the phase-4 tools (entities, assemblies, metadata)."""
 
+import io
 import os
 import re
 import subprocess
@@ -29,7 +30,8 @@ from support import (  # noqa: E402
 
 from mmciftools import (  # noqa: E402
     mmcif_assembly, mmcif_delcat, mmcif_delentity, mmcif_delhetatm, mmcif_delinsertion,
-    mmcif_fixinsert, mmcif_info, mmcif_label2auth, mmcif_selentity, mmcif_splitchain, mmcif_tofasta)
+    mmcif_b, mmcif_chain, mmcif_fixinsert, mmcif_head, mmcif_info, mmcif_label2auth, mmcif_occ,
+    mmcif_reres, mmcif_selaltloc, mmcif_selelem, mmcif_selentity, mmcif_splitchain, mmcif_tofasta)
 
 WWPDB = read('wwpdb_like.cif')
 
@@ -121,6 +123,10 @@ def drop_columns(text, names):
     body = [' '.join(t for k, t in enumerate(line.split()) if k not in drop)
             if line.startswith(('ATOM', 'HETATM')) else line for line in lines[end:]]
     return '\n'.join(lines[:start] + [t for k, t in enumerate(tags) if k not in drop] + body)
+
+
+def column_of(text, name, category='_atom_site'):
+    return [r[name] for r in rows(text, category)]
 
 
 def atoms(text):
@@ -301,6 +307,84 @@ class TestStressFixes(unittest.TestCase):
         chains_only = rows(run_tool(mmcif_label2auth, text, True, False))
         self.assertNotIn('auth_seq_id', chains_only[0].loop)
         self.assertEqual([a['auth_asym_id'] for a in chains_only], [a['label_asym_id'] for a in chains_only])
+
+    def test_head_counts_across_data_blocks(self):  # round 2: two blocks
+        two = WWPDB + WWPDB.replace('data_1XYZ', 'data_1XYZ_copy', 1)
+        self.assertEqual(len(rows(run_tool(mmcif_head, two, 5))), 5)
+        self.assertEqual(len(rows(run_tool(mmcif_head, two, 25))), 25)
+        self.assertEqual(len(rows(run_tool(mmcif_head, WWPDB, 5))), 5)
+
+    def test_fixinsert_links_without_residue_names(self):  # round 2: a file written by gemmi
+        text = WWPDB.replace(
+            "_struct_conn.pdbx_dist_value \nhydrog1 hydrog A SER 2 OG B SO4 . O1 2.95 \n",
+            "_struct_conn.pdbx_dist_value \n_struct_conn.ptnr1_auth_asym_id \n_struct_conn.ptnr1_auth_seq_id \n"
+            "_struct_conn.pdbx_ptnr1_PDB_ins_code \n_struct_conn.ptnr2_auth_asym_id \n"
+            "_struct_conn.ptnr2_auth_seq_id \n_struct_conn.pdbx_ptnr2_PDB_ins_code \n"
+            "hydrog1 hydrog A GLY 3 CA B SO4 . O1 2.95 A 11 A A 201 ? \n")
+        out = run_tool(mmcif_fixinsert, text, set())
+        link = rows(out, '_struct_conn')[0]
+        self.assertEqual((link['ptnr1_auth_seq_id'], link['pdbx_ptnr1_PDB_ins_code']), ('12', '?'))
+        self.assertEqual(reference_problems(out), set())
+
+    def test_anisotropic_rows_follow_their_atom(self):  # round 2: 4PTJ, models that differ
+        text = ('data_t\nloop_\n' + ''.join('_atom_site.{}\n'.format(c) for c in (
+            'group_PDB', 'id', 'type_symbol', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
+            'auth_seq_id', 'auth_asym_id', 'Cartn_x', 'Cartn_y', 'Cartn_z', 'pdbx_PDB_model_num'))
+                + 'ATOM 1 N N MET A 1 10 A 0 0 0 1\nATOM 2 N N SER A 2 11 A 0 0 0 1\n'
+                'ATOM 3 N N SER A 2 11 A 0 0 0 2\n'
+                'loop_\n_atom_site_anisotrop.id\n_atom_site_anisotrop.pdbx_auth_asym_id\n'
+                '_atom_site_anisotrop.pdbx_auth_seq_id\n_atom_site_anisotrop.U[1][1]\n'
+                '1 A 10 0.1\n2 A 11 0.1\n3 A 11 0.1\n')
+        out = run_tool(mmcif_reres, text, 1)
+        self.assertEqual([r['auth_seq_id'] for r in rows(out)], ['1', '2', '1'])  # model 2 has no MET
+        self.assertEqual(column_of(out, 'pdbx_auth_seq_id', '_atom_site_anisotrop'), ['1', '2', '1'])
+        self.assertEqual(reference_problems(out), set())
+        coded = text.replace('_atom_site.pdbx_PDB_model_num\n', '_atom_site.pdbx_PDB_model_num\n'
+                             '_atom_site.pdbx_PDB_ins_code\n').replace(' 0 0 0 1\n', ' 0 0 0 1 ?\n')
+        coded = coded.replace('ATOM 3 N N SER A 2 11 A 0 0 0 2\n', 'ATOM 3 N N SER A 2 10 A 0 0 0 2 A\n')
+        coded = coded.replace('3 A 11 0.1', '3 A 10 0.1')
+        self.assertEqual(reference_problems(run_tool(mmcif_fixinsert, coded, set())), set())
+
+    def test_edits_need_the_columns_of_their_scheme(self):  # round 2: files without label (or author) ids
+        no_auth = drop_columns(WWPDB, ['auth_asym_id', 'auth_seq_id'])
+        with self.assertRaises(_cif.CIFError) as ctx:
+            run_tool(mmcif_chain, no_auth, 'Z')
+        self.assertIn('no auth_asym_id column', str(ctx.exception))
+        no_label = drop_columns(WWPDB, ['label_asym_id', 'label_seq_id'])
+        with self.assertRaises(_cif.CIFError) as ctx:
+            run_tool(mmcif_reres, no_label, 1, scheme='label')
+        self.assertIn('no label_seq_id column', str(ctx.exception))
+
+    def test_missing_optional_columns(self):  # round 2: modified copies
+        no_alt = drop_columns(WWPDB, ['label_alt_id'])
+        self.assertEqual(run_tool(mmcif_selaltloc, no_alt, None), no_alt)
+        no_b = drop_columns(WWPDB, ['B_iso_or_equiv', 'occupancy'])
+        self.assertEqual({r['B_iso_or_equiv'] for r in rows(run_tool(mmcif_b, no_b, 5.0))}, {'5.00'})
+        self.assertEqual({r['occupancy'] for r in rows(run_tool(mmcif_occ, no_b, 0.5))}, {'0.50'})
+        with self.assertRaises(_cif.CIFError) as ctx:
+            run_tool(mmcif_selelem, drop_columns(WWPDB, ['type_symbol']), ['C'])
+        self.assertIn('no type_symbol column', str(ctx.exception))
+
+    def test_upper_case_tags(self):  # round 2: tags are case-insensitive
+        import shutil
+        import tempfile
+        from mmciftools import mmcif_merge
+        upper = re.sub(r'^(_[A-Za-z_]+\.\S+)', lambda m: m.group(1).upper(), WWPDB, flags=re.M)
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, 'u.cif')
+            with open(path, 'w', newline='') as fh:
+                fh.write(upper)
+            out = io.StringIO()
+            _cif.write(mmcif_merge.run([path, path]), out)
+            ids = [r['id'] for r in rows(out.getvalue())]
+            self.assertEqual(len(ids), 2 * len(rows(WWPDB)))
+            self.assertEqual(len(set(ids)), len(ids))  # renumbered, no duplicates
+        finally:
+            shutil.rmtree(tmp)
+        no_b = re.sub(r'^(_[A-Za-z_]+\.\S+)', lambda m: m.group(1).upper(),
+                      drop_columns(WWPDB, ['B_iso_or_equiv']), flags=re.M)
+        self.assertEqual({r['B_iso_or_equiv'] for r in rows(run_tool(mmcif_b, no_b, 3.0))}, {'3.00'})
 
     def test_seqres_without_poly_seq_scheme(self):  # files not from the PDB; 3IRI (sugars only)
         text = ('data_x\nloop_\n_entity_poly.entity_id\n_entity_poly.pdbx_strand_id\n1 A,C\n2 B\n'

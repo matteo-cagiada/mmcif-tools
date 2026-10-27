@@ -18,11 +18,11 @@
 """
 Merges several mmCIF files into one multi-model (ensemble) file.
 
-As pdb_mkensemble, the n-th file becomes model n (all its atoms, whatever
-their model numbers), the provenance of each model is written at the top
-(as comment lines), the other categories are dropped except the
-_struct_conn of the first file, and the models are not checked against
-each other (see mmcif_chkensemble).
+As pdb_mkensemble, the n-th file becomes model n (all the atoms of its
+first data block, whatever their model numbers), the provenance of each
+model is written at the top (as comment lines), the other categories are
+dropped except the _struct_conn of the first file, and the models are not
+checked against each other (see mmcif_chkensemble).
 
 The _atom_site loop has the columns of all files (missing values are
 '?'), pdbx_PDB_model_num is added if needed, and atom ids are renumbered

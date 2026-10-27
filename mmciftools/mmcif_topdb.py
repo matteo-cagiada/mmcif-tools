@@ -19,8 +19,8 @@
 Converts the coordinates of an mmCIF file to the PDB format.
 
 As pdb_fromcif, writes the ATOM/HETATM records of _atom_site (with MODEL /
-ENDMDL records when there are several models) and END; other categories are
-not converted. Chains, residue numbers and names are auth identifiers,
+ENDMDL records when there are several models) and END; other categories,
+and data blocks after the first, are not converted. Chains, residue numbers and names are auth identifiers,
 falling back to label ones when a file lacks them (with --label, label ones
 are used). Atom serials restart at 1 in each model. Unlike pdb_fromcif, a
 TER record follows the last residue of each polymer (atoms with a

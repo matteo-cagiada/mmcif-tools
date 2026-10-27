@@ -91,7 +91,7 @@ def edit_everything(text):
 
 def rows(text, category='_atom_site'):
     return [ev for ev in _cif.parse(io.StringIO(text, newline=''), category)
-            if isinstance(ev, _cif.Row) and ev.loop.category == category]
+            if isinstance(ev, _cif.Row) and ev.loop.category.lower() == category.lower()]
 
 
 def edit_rows(func, category='_atom_site'):

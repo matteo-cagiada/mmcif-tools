@@ -718,3 +718,74 @@ system).
   label chains of ligands (e.g. `H` for an antibody heavy chain), so an option to rename those ligand label
   chains too may be worth adding.
 - The memory of `mmcif_assembly` and `mmcif_validate` on the largest files could be reduced.
+
+## 14. Second stress test: 100 systems aimed at the weak spots (2026-10-27)
+
+Round 1 found most of its problems in chain identifiers, in files from outside the standard PDB pipeline, in
+microheterogeneity, and in very large files. Round 2 aimed at those. It lives in
+`../mmcif-tools-stress/round2/`: the selection and download scripts, `make_variants.py`, the data (148 MB) and
+the reports.
+
+**The systems:**
+- **A, other sources (30):**
+  - 10 integrative (PDB-IHM) entries;
+  - 8 ModelArchive ModelCIF models (`ma-bak-cepc-*`; other ModelArchive projects could not be found by id);
+  - 7 PDBe "updated" files, compared with the RCSB copy of the same entry;
+  - 3 chemical components, 1 BIRD file, and 10 chemical components in one file (no `_atom_site`).
+- **B, PDB entries for one weak spot each (40),** found from RCSB metadata:
+  - 12 with chain ids differing only in case (they are common: 217 of 500 entries with 12-400 chains);
+  - 3 with 500 or more chains (up to 716k atoms);
+  - 5 with 100 or more models;
+  - 5 with microheterogeneity;
+  - 5 with residue numbers down to -397;
+  - 5 antibodies with 15 or more insertion codes;
+  - 5 with assemblies from several operation lists (up to 60) or a product, `(1-60)(61-88)` in 1M4X.
+  - Residue numbers of 10,000 or more were not found in 600 entries; the modified copies cover them.
+- **C, modified copies (30)** of 2KJK, 1X6Z, 4NHC, 3DIO, 9CVO and 9V1K (round-1 entries: NMR, altlocs,
+  insertion codes, RNA, ligands, case-only chain ids):
+  - **layout only** (Windows line endings, tabs, every value quoted, one value per line, comments in the loop,
+    shuffled columns, upper-case tags, uncompressed without a final newline, rewritten by `mmcif_tidy`): every
+    command must give the same atoms and values as on the original;
+  - **two data blocks:** each half must equal the original;
+  - **rewritten by the gemmi program:** the same atom counts;
+  - **changed values or columns** (residue numbers +20000 / -1000, no author columns, no label columns, no
+    model number, no element, no occupancy and B-factor, no `group_PDB`): the usual checks.
+
+**The new checks.**
+- *compare*: each command runs on the original file too, and the results are compared exactly (layout
+  copies), doubled (two blocks), by counts (gemmi), or on the shared columns (PDBe vs RCSB).
+- gemmi dictionary messages are compared without block names and quoted values.
+
+**Found and fixed:**
+- **4PTJ** (an ensemble whose models hold different residues, each with anisotropic rows): after `mmcif_reres`
+  and `mmcif_fixinsert`, 1842 anisotropic rows of later models had model 1's residue numbers. Anisotropic rows
+  now follow their atom, by atom id.
+- **Upper-case tags:** `Row.moved()` matched column names exactly, so `mmcif_merge` left 15,690 duplicate ids
+  (`_ATOM_SITE.ID`). Now case-insensitive.
+- **Missing scheme columns:**
+  - edits silently fell back to the other scheme (`--label` on a file without label columns renumbered the
+    author ids, and the references then disagreed);
+  - by default, an integrative model without author columns had its `label_seq_id` renumbered.
+  - Edits now stop with a message that names the missing column and the way out (`mmcif_label2auth`).
+- **gemmi-written links without residue names:** `mmcif_fixinsert` did not renumber them; its fallback key never
+  matched.
+- **`mmcif_head`** counted each data block separately, against its help.
+- **Smaller ones:**
+  - `mmcif_selaltloc` without an altloc column writes the file unchanged;
+  - `mmcif_b` / `mmcif_occ` add their column;
+  - missing-column errors name the mmCIF column;
+  - the first-data-block behaviour of `mmcif_merge`, `mmcif_mkensemble` and `mmcif_topdb` is documented.
+
+**Final round 2** (fixed build):
+- **Outcomes:** 6,181 runs: 5,916 ok, 108 refused, 157 skipped, 0 errors.
+- **Checks:** all passed: atom counts 4,733, re-read 4,701, references 4,701, dictionary 4,368, compare 1,427.
+- **Refusals:** clear messages, e.g. `mmcif_topdb` on 5-character residue names (`A1A0K`, the new CCD
+  identifiers), on multi-character chains and on more than 99,999 atoms; missing columns on the modified
+  copies; files without atoms.
+- **Unit tests:** 189 pass.
+
+**Round 1 again, on the round-2 build** (a regression check):
+- **Outcomes:** 12,424 runs, 0 errors, 0 failed checks.
+- **The only change from round 1:** 3 more refusals, as intended. On the integrative entry 9A1M, which has no
+  `auth_seq_id`, `mmcif_reres` and `mmcif_shiftres` (both forms) now refuse instead of renumbering
+  `label_seq_id`.

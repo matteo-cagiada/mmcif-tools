@@ -38,6 +38,20 @@ The first version for testers. It is not on PyPI or conda-forge yet; install it 
   - `mmcif_label2auth`: adds `auth_asym_id` / `auth_seq_id` when a file lacks them (integrative models).
   - `mmcif_tofasta -seqres`: reads `_entity_poly_seq` when a file has no `_pdbx_poly_seq_scheme`, writes one
     residue per position where two residue types share it, and explains when a file has no polymer.
+- **Fixed after a second, targeted stress test** (100 systems: integrative models, ModelArchive and PDBe files,
+  chemical component files, entries chosen for one weak spot each, and modified copies of entries):
+  - `mmcif_reres` / `mmcif_fixinsert`: in files whose models hold different residues (4PTJ), the anisotropic
+    rows of later models got model 1's numbers; they now follow their own atom.
+  - `mmcif_merge` (and every tool that adds rows to a loop): with upper-case tags (`_ATOM_SITE.ID`), atom ids
+    were not renumbered; tags are case-insensitive, as in CIF.
+  - Edits with `--label` on a file without label columns (or without `--label` on one without author
+    columns) changed the other scheme's columns; they now stop with a clear message.
+  - `mmcif_fixinsert`: links whose rows have no residue name (as gemmi writes them) were not renumbered.
+  - `mmcif_head` counted the atoms of each data block separately; it now counts over the whole file, as its
+    help says.
+  - `mmcif_selaltloc` writes a file without an altloc column unchanged; `mmcif_b` / `mmcif_occ` add their
+    column when it is missing; "missing column" errors name the mmCIF column (`type_symbol`, `group_PDB`, ...).
+  - `mmcif_merge`, `mmcif_mkensemble` and `mmcif_topdb` say in their help that they use the first data block.
 - **Known limitation:** after an edit, categories other than `_atom_site`, `_atom_site_anisotrop` and
   `_struct_conn` that refer to atoms or residues (`_struct_conf`, `_pdbx_poly_seq_scheme`, `_pdbx_validate_*`,
   ...) are left as they were. A tool to bring them back in step is planned.

@@ -117,9 +117,12 @@ def run(fhandle, start, scheme=None):
         num = new_numbers.get(_reference_key(chain, resnum, icode, resname))
         return num if num is not None else new_numbers.get(_reference_key(chain, resnum, icode))
 
+    # Anisotropic rows follow their atom: models may hold different residues,
+    # and then the numbers of model 1 do not fit the others.
+    has_aniso = any(type(ev) is _cif.Loop for ev in _cif.parse(source.lines(), _atoms.ANISOTROP))
     return _atoms.rename(source.lines(), scheme,
                          atom_resnum=lambda fields: _numberer(fields, start),
-                         ref_resnum=ref_resnum)
+                         ref_resnum=ref_resnum, aniso_by_id=has_aniso)
 
 
 def main():

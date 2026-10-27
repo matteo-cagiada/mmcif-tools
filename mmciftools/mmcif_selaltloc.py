@@ -28,7 +28,8 @@ The choice is made per residue, so a residue modelled as two different
 residue types (e.g. SER/THR) is never mixed. Atoms keep their order, and
 rows of _atom_site_anisotrop of removed atoms are removed too. Links
 (_struct_conn) to a removed conformer are removed, and links to a kept one
-lose their altloc label, as the atom does.
+lose their altloc label, as the atom does. A file without a label_alt_id
+column has no alternate locations and is written unchanged.
 
 Usage:
     mmcif_selaltloc [-<altloc>] <cif file>
@@ -61,6 +62,14 @@ def _occupancy(value):
         return float(value)
     except ValueError:
         return 0.0
+
+
+def _has_altlocs(source):
+    """True if the _atom_site loop has a label_alt_id column."""
+    for ev in _cif.parse(source.lines(), _atoms.ATOM_SITE):
+        if type(ev) is _cif.Loop:
+            return 'label_alt_id' in ev
+    return True  # no atoms: let the usual checks report it
 
 
 def _alt_links(source):
@@ -115,6 +124,10 @@ def _link_fates(source, conn_loop, conns, altloc, scheme):
 def run(fhandle, altloc=None, scheme=None):
     """Yield the events of the file with one alternate location kept."""
     source = _atoms.as_source(fhandle)
+    if not _has_altlocs(source):  # no label_alt_id column: nothing to select
+        for ev in _cif.parse(source.lines(), ()):
+            yield ev
+        return
     links = _alt_links(source)
     fates, partners = {}, None
     if links is not None:

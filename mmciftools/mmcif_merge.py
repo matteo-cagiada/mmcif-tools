@@ -23,7 +23,8 @@ several data blocks, so instead the output is the first file with the atoms
 of all the others added to its _atom_site loop (which gets the columns of
 all files; missing values are '?'). The atoms of the first file keep their
 ids, those of the next files are renumbered after them. Only _atom_site is
-taken from the other files: their metadata, _atom_site_anisotrop and
+taken from the other files (from their first data block, added to the
+first data block of the first file): their metadata, _atom_site_anisotrop and
 _struct_conn rows are not merged, and _entity / _struct_asym are not
 updated.
 

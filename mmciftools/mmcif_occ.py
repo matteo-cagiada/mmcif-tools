@@ -18,7 +18,7 @@
 """
 Sets the occupancy (_atom_site.occupancy) of all atoms (default 1.0).
 
-Values are written with two decimals.
+Values are written with two decimals; a file without the column gets it.
 
 Usage:
     mmcif_occ -<occupancy> <cif file>
@@ -47,15 +47,21 @@ def check_input(args):
 def run(fhandle, occupancy, scheme=None):
     """Yield the events of the file with every occupancy set to occupancy."""
     value = '{:.2f}'.format(occupancy)
-    col = None
+    col, target = None, None
     for ev in _cif.parse(fhandle):
         if type(ev) is _cif.Row:
-            if col is not None:
+            if target is not None:  # the column is added
+                ev = ev.moved(target, {'occupancy': value})
+            elif col is not None:
                 ev[col] = value
         elif type(ev) is _cif.Loop:
             fields = _atoms.Fields(ev, scheme)
-            fields.need('occupancy')
-            col = ev.columns[fields.occupancy]
+            target = None
+            if fields.occupancy is None:
+                target = ev.with_columns(ev.columns + ['occupancy'])
+                ev = target
+            else:
+                col = ev.columns[fields.occupancy]
         yield ev
 
 

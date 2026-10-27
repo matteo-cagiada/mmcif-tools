@@ -18,9 +18,10 @@
 """
 Keeps the first N atoms (_atom_site rows) of an mmCIF file.
 
-Atoms are counted over the whole file, across models. Unlike pdb_head, which
-outputs nothing but the first N ATOM/HETATM lines, the rest of the file
-(metadata categories) is kept, so the output is still a complete mmCIF file;
+Atoms are counted over the whole file, across models and data blocks.
+Unlike pdb_head, which outputs nothing but the first N ATOM/HETATM lines,
+the rest of the file (metadata categories) is kept, so the output is still
+a complete mmCIF file;
 rows of _atom_site_anisotrop and _struct_conn that refer to removed atoms
 are removed.
 
@@ -52,13 +53,19 @@ def check_input(args):
 
 def run(fhandle, count, scheme=None):
     """Yield the events of the file, keeping only the first `count` atoms."""
+    # One count over the whole file, also across data blocks. filter_atoms
+    # reads the file twice and asks for a keep function at each _atom_site
+    # loop, so the count restarts when its first loop comes round again.
+    state = {'first': None, 'seen': 0}
+
     def make_keep(fields):
-        seen = 0
+        line = fields.loop.lineno
+        if state['first'] is None or line == state['first']:
+            state['first'], state['seen'] = line, 0
 
         def keep(values):
-            nonlocal seen
-            seen += 1
-            return seen <= count
+            state['seen'] += 1
+            return state['seen'] <= count
         return keep
 
     return _atoms.filter_atoms(fhandle, make_keep, scheme)

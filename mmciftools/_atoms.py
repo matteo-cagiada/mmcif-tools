@@ -84,12 +84,18 @@ class Fields:
         self.occupancy = pos('occupancy')
         self.bfactor = pos('B_iso_or_equiv')
 
+    _COLUMNS = {'id': 'id', 'group': 'group_PDB', 'model': 'pdbx_PDB_model_num',
+                'chain': 'auth_asym_id or label_asym_id', 'resnum': 'auth_seq_id or label_seq_id',
+                'icode': 'pdbx_PDB_ins_code', 'resname': 'auth_comp_id or label_comp_id',
+                'atom': 'auth_atom_id or label_atom_id', 'altloc': 'label_alt_id', 'element': 'type_symbol',
+                'occupancy': 'occupancy', 'bfactor': 'B_iso_or_equiv'}
+
     def need(self, *names):
         """Raise CIFError unless the loop has the given fields."""
         for name in names:
             if getattr(self, name) is None:
                 raise _cif.CIFError('{} has no {} column (needed here)'.format(
-                    self.loop.category, name), self.loop.lineno)
+                    self.loop.category, self._COLUMNS.get(name, name)), self.loop.lineno)
 
 
 def getter(*positions):
@@ -525,7 +531,22 @@ def _reference_columns(loop, scheme):
     return out
 
 
-def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, start=None):
+def _edited_column(loop, position, field, scheme):
+    """The name of the column to edit; CIFError if it belongs to the other
+    scheme (Fields falls back to it when a file lacks one): editing author ids
+    when label ones were asked for, or the reverse, would be wrong."""
+    name = loop.columns[position]
+    if not name.lower().startswith(scheme + '_'):
+        wanted = {'chain': 'asym_id', 'resnum': 'seq_id'}[field]
+        hint = ('; mmcif_label2auth can add author identifiers' if scheme == 'auth'
+                else '; use the author identifiers (without --label)')
+        raise _cif.CIFError('_atom_site has no {}_{} column, so its {} identifiers cannot be edited{}'.format(
+            scheme, wanted, scheme, hint), loop.lineno)
+    return name
+
+
+def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, start=None,
+           aniso_by_id=False):
     """Yield the events of the input with chains and/or residues renamed.
 
     chain(old_chain) -> new chain (or None to keep it)
@@ -536,9 +557,12 @@ def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, 
         old names; None for a column the category lacks)
     start(fields), if given, is called at each _atom_site loop (e.g. to
         check that the needed columns exist).
+    aniso_by_id: update _atom_site_anisotrop rows from their atom (by id)
+        rather than with ref_resnum (for files whose models differ).
     """
     scheme = _cif.get_scheme(scheme)
     kind = None
+    by_id = {} if aniso_by_id else None  # atom id -> (chain, residue number) after the edit
     for ev in _cif.parse(fhandle, (ATOM_SITE, ANISOTROP, STRUCT_CONN)):
         etype = type(ev)
         if etype is _cif.Row:
@@ -552,6 +576,16 @@ def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, 
                     new = chain(values[f_chain])
                     if new is not None and new != values[f_chain]:
                         ev[chain_col] = new
+                if by_id is not None and id_pos is not None:
+                    values = ev.values
+                    by_id[values[id_pos]] = (values[f_chain] if chain is not None else None,
+                                             values[f_resnum] if new_resnum is not None else None)
+            elif kind == ANISOTROP and by_id and aniso_id is not None and ev.values[aniso_id] in by_id:
+                new_chain, new_num = by_id[ev.values[aniso_id]]
+                c_pos, r_pos = refs[0][0], refs[0][1]
+                for pos, new in ((c_pos, new_chain), (r_pos, new_num)):
+                    if pos is not None and new is not None and ev.values[pos] != new:
+                        ev[ev.loop.columns[pos]] = new
             elif kind is not None:
                 for c_pos, r_pos, i_pos, n_pos in refs:
                     values = ev.values
@@ -577,15 +611,17 @@ def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, 
                 if chain is not None:
                     fields.need('chain')
                     f_chain = fields.chain
-                    chain_col = ev.columns[f_chain]
+                    chain_col = _edited_column(ev, f_chain, 'chain', scheme)
                 new_resnum = None
                 if atom_resnum is not None:
                     fields.need('resnum')
                     f_resnum = fields.resnum
-                    resnum_col = ev.columns[f_resnum]
+                    resnum_col = _edited_column(ev, f_resnum, 'resnum', scheme)
                     new_resnum = atom_resnum(fields)
+                id_pos = fields.id
             else:
                 refs = _reference_columns(ev, scheme)
+                aniso_id = ev.index('id') if kind == ANISOTROP and 'id' in ev else None
         elif etype is _cif.LoopEnd:
             kind = None
         yield ev

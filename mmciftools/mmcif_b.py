@@ -19,8 +19,8 @@
 Sets the temperature factor (_atom_site.B_iso_or_equiv) of all atoms
 (default 10.0).
 
-Values are written with two decimals. Anisotropic factors
-(_atom_site_anisotrop) are not changed, as in pdb_b.
+Values are written with two decimals; a file without the column gets it.
+Anisotropic factors (_atom_site_anisotrop) are not changed, as in pdb_b.
 
 Usage:
     mmcif_b -<bfactor> <cif file>
@@ -49,15 +49,21 @@ def check_input(args):
 def run(fhandle, bfactor, scheme=None):
     """Yield the events of the file with every B-factor set to bfactor."""
     value = '{:.2f}'.format(bfactor)
-    col = None
+    col, target = None, None
     for ev in _cif.parse(fhandle):
         if type(ev) is _cif.Row:
-            if col is not None:
+            if target is not None:  # the column is added
+                ev = ev.moved(target, {'B_iso_or_equiv': value})
+            elif col is not None:
                 ev[col] = value
         elif type(ev) is _cif.Loop:
             fields = _atoms.Fields(ev, scheme)
-            fields.need('bfactor')
-            col = ev.columns[fields.bfactor]
+            target = None
+            if fields.bfactor is None:
+                target = ev.with_columns(ev.columns + ['B_iso_or_equiv'])
+                ev = target
+            else:
+                col = ev.columns[fields.bfactor]
         yield ev
 
 
