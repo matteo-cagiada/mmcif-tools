@@ -37,9 +37,6 @@ Documentation = "https://github.com/matteo-cagiada/mmcif-tools/blob/main/docs/to
 Changelog = "https://github.com/matteo-cagiada/mmcif-tools/blob/main/CHANGELOG.md"
 Issues = "https://github.com/matteo-cagiada/mmcif-tools/issues"
 
-[project.optional-dependencies]
-test = ["pdb-tools"]
-
 [project.scripts]
 mmcif_assembly = "mmciftools.mmcif_assembly:main"
 mmcif_auth2label = "mmciftools.mmcif_auth2label:main"

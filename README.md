@@ -1,24 +1,26 @@
 # mmcif-tools
 
-mmcif-tools is an indipendent project style and much of its tool
-set are inspired by [pdb-tools](https://www.bonvinlab.org/pdb-tools/) (Rodrigues JPGLM, Teixeira
-JMC, Trellet M and Bonvin AMJJ, *F1000Research* 2018, 7:1961). mmcif-ttols ports and expands the PDB-Tools functionalities to the MMcif (PDBx/MMcif) format.
+mmcif-tools is an independent project whose style and much of its tool set are inspired by
+[pdb-tools](https://www.bonvinlab.org/pdb-tools/) (Rodrigues JPGLM, Teixeira JMC, Trellet M and Bonvin AMJJ,
+*F1000Research* 2018, 7:1961). mmcif-tools ports and expands the pdb-tools functionality to the mmCIF (PDBx/mmCIF)
+format.
 
-As pdb-tools it includes small, single-purpose command-line tools that read and write mmCIF (PDBx/mmCIF) files and chain together with
-Unix pipes: select, delete, edit, convert and inspect structures without leaving the shell. The package need only the
-Python standard library (Python 3.9 or newer). 
+As pdb-tools, it is a set of small, single-purpose command-line tools that read and write mmCIF files and chain
+together with Unix pipes: select, delete, edit, convert and inspect structures without leaving the shell. The
+package needs only the Python standard library (Python 3.9 or newer).
 
 ```bash
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.1.0, pre-release: 52 available tools** 
+**CURRENT VERSION: Version 0.1.0, pre-release: 52 available tools**
 
 
 ## Tools
 
-mmcif_tools reads the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDBe), the AlphaFold DB (ModelCIF), structure
-prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF are currently not supported.
+mmcif-tools reads the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDBe), the AlphaFold DB (ModelCIF),
+structure prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF is currently not
+supported.
 
 The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 
@@ -65,12 +67,41 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 
 ## Usage examples and tips
 
+```bash
+# A clean protein for docking or simulations: one conformer, no ligands or waters, an aligned layout
+mmcif_fetch 4hhb | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_tidy > 4hhb_protein.cif
+
+# Chain A with its heme, numbered from 1, as a PDB file for programs that need one
+mmcif_fetch 4hhb | mmcif_selchain -A | mmcif_delentity -water | mmcif_reres -1 | mmcif_topdb > 4hhb_A.pdb
+
+# The biological assembly, built from the symmetry operations in the file (chains A, A-2, A-3, A-4)
+mmcif_fetch 1stp | mmcif_assembly > 1stp_tetramer.cif
+
+# What an entry holds: method, resolution, organisms, entities, assemblies (and the pLDDT of AlphaFold models)
+mmcif_fetch 4hhb | mmcif_info
+mmcif_fetch AF-P69905-F1 | mmcif_info
+
+# A table of atoms for awk, R or pandas (tab-separated, one header line)
+mmcif_cat -_atom_site.auth_asym_id,auth_seq_id,label_comp_id,B_iso_or_equiv 4hhb.cif > atoms.tsv
+
+# Residues numbered along the deposited sequence, and one author chain per molecule
+mmcif_label2auth 4hhb.cif > 4hhb_by_sequence.cif
+
+# A leaner file without the PDB's validation reports and secondary structure
+mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb_lean.cif
+```
+
 - Each tool takes at most one option (starting with `-`) and one file, and reads stdin when no file is given, so
   tools chain with pipes. Negative numbers need a double dash (`mmcif_shiftres --5`).
 - `--help` prints a tool's usage (not `-h`, which is a real option of some tools, e.g. `mmcif_wc -h`).
 - Errors go to stderr as `ERROR!! ...`, with exit status 1.
 - Rows a tool does not change are written back byte-for-byte. In changed rows, only the edited values are
   rewritten, and the other columns keep their alignment.
+- To remove ligands and waters, select by entity (`mmcif_delentity -non-polymer,water`) rather than by HETATM
+  record: `mmcif_delhetatm` also removes modified residues inside chains (selenomethionine, modified nucleotides).
+- Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
+- Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
+- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
 
 ## Coming from pdb-tools
 
@@ -100,7 +131,6 @@ Most tools have the pdb-tools name with `mmcif_` for `pdb_` and the same options
 - **No fixed columns.** Chain identifiers can be longer than one character, and there are no limits on atom or
   residue numbers. `mmcif_topdb` refuses structures that do not fit the PDB format.
 
-
 ## Installation
 
 ```bash
@@ -109,8 +139,8 @@ cd mmcif-tools
 python -m pip install .
 ```
 
-There are no runtime dependencies. For development, `python -m pip install -e ".[test]"` installs the package in
-place and adds pdb-tools, which the tests use as an independent cross-check.
+There are no runtime dependencies. `python tools/smoke_test.py` then checks the installation: every command runs,
+and a few pipelines give the expected results.
 
 ## Extra tools
 
@@ -127,12 +157,19 @@ place and adds pdb-tools, which the tests use as an independent cross-check.
   ```
 
 - **`tools/make_docs.py`** writes the [tool reference](docs/tools.md) from the `--help` texts.
+- **`tools/smoke_test.py`** checks an installation (see [Installation](#installation)).
 
 ## Citation and changes
 
 How to cite mmcif-tools is in [CITATION.cff](CITATION.cff); the changes between versions are in
 [CHANGELOG.md](CHANGELOG.md). [PLAN.md](PLAN.md) records the design decisions and the test results.
 
+## Acknowledgements
+
+Most of the code and documentation of mmcif-tools was written with [Claude Code](https://claude.com/claude-code),
+Anthropic's AI coding assistant, under the direction of the author, who designed the tools and reviewed and tested
+them.
+
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE). 
+Apache-2.0. See [LICENSE](LICENSE).

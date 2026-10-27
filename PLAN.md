@@ -266,6 +266,10 @@ Decided for phase 4 (2026-10-24):
     also covers the newest versions, up to 3.15.
 19. **Four more mmCIF tools:** `mmcif_selentity` / `mmcif_delentity`, `mmcif_assembly`, `mmcif_info`.
 20. **pdb-tools stays a test-only cross-check** (the `[test]` extra); it is not shipped.
+21. **The test suite is not public** (2026-10-27, before the repository goes public for the pre-release).
+    `tests/` stays in the developers' working copy (git-ignored) and in the history up to commit 36e75f3;
+    the `[test]` extra is gone. CI runs `tools/smoke_test.py` (every command, a few pipelines) and the
+    tool-reference check on Python 3.9-3.15, Linux, macOS and Windows.
 
 ## 8. Phase 0 status (2026-10-23): done
 

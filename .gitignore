@@ -5,6 +5,6 @@ build/
 dist/
 .venv/
 .claude/settings.local.json
-tests/real/
+tests/
 .DS_Store
 *.swp

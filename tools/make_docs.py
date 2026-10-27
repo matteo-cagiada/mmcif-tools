@@ -19,8 +19,8 @@
 Writes docs/tools.md, the tool reference, from the tools' --help texts.
 
 Every console script of pyproject.toml must be in one of the GROUPS below.
-tests/test_docs.py checks that docs/tools.md is up to date, so run this
-after changing a help text or adding a tool.
+CI checks that docs/tools.md is up to date (--check), so run this after
+changing a help text or adding a tool.
 
 Usage:
     python tools/make_docs.py           # writes docs/tools.md

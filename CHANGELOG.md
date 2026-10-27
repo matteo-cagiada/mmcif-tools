@@ -52,6 +52,8 @@ The first version for testers. It is not on PyPI or conda-forge yet; install it 
   - `mmcif_selaltloc` writes a file without an altloc column unchanged; `mmcif_b` / `mmcif_occ` add their
     column when it is missing; "missing column" errors name the mmCIF column (`type_symbol`, `group_PDB`, ...).
   - `mmcif_merge`, `mmcif_mkensemble` and `mmcif_topdb` say in their help that they use the first data block.
+- **Checking an installation:** `python tools/smoke_test.py` runs every command and a few pipelines. The full test
+  suite stays with the developers and is not part of the public repository.
 - **Known limitation:** after an edit, categories other than `_atom_site`, `_atom_site_anisotrop` and
   `_struct_conn` that refer to atoms or residues (`_struct_conf`, `_pdbx_poly_seq_scheme`, `_pdbx_validate_*`,
   ...) are left as they were. A tool to bring them back in step is planned.
