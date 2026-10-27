@@ -527,33 +527,38 @@ metadata that stays true.
 PDB entries carry dozens of categories that refer to residues by chain and
 number: validation reports, secondary structure, sequence schemes, sites,
 assemblies, ... The other tools do not update them, so after an edit they no
-longer match the atoms, and most programs that read mmCIF ignore them anyway.
-This tool keeps:
+longer match the atoms. This tool keeps:
 
     _atom_site                 the atoms
     _atom_site_anisotrop       their anisotropic B-factors
     _struct_conn               the links (disulfides, metal sites, ...)
     _entry                     the entry id
     _cell, _symmetry           the unit cell and space group
+    _exptl, _refine, _reflns,  the method and resolution
+    _em_3d_reconstruction
+    _pdbx_audit_revision_history  the release and revision dates
     _entity, _entity_poly,     the molecules and their sequences
     _entity_poly_seq
+    _struct_asym               the chains (label_asym_id) of each molecule
     _chem_comp, _atom_type     the chemical components and elements
 
-and deletes every other category. With -all, only the atoms, anisotropic
-B-factors and links are kept (mmcif_keepcoord also drops the anisotropic
-B-factors, as pdb_keepcoord drops ANISOU records).
+and deletes every other category. These are what AlphaFold and ColabFold
+read from template files, for example. The kept tables are brought in step
+with the atoms: rows of chains (_struct_asym) and entities that have no
+atoms left are removed, and _entity.pdbx_number_of_molecules and
+_entity_poly.pdbx_strand_id are recomputed. So run it last in a pipeline,
+after the edits.
 
-Run it first in a pipeline, before the edits. Two kept items can still
-disagree after edits: _entity keeps describing molecules whose atoms a later
-tool removes, and _entity_poly.pdbx_strand_id names author chains, which
-chain renames do not update.
+With -all, only the atoms, anisotropic B-factors and links are kept
+(mmcif_keepcoord also drops the anisotropic B-factors, as pdb_keepcoord
+drops ANISOU records).
 
 Usage:
     mmcif_delmeta [-all] <cif file>
 
 Example:
     mmcif_delmeta 1abc.cif > 1abc_clean.cif
-    mmcif_delmeta 1abc.cif | mmcif_delentity -non-polymer,water > protein.cif
+    mmcif_selchain -A 1abc.cif | mmcif_delentity -water | mmcif_delmeta > 1abc_A.cif
     mmcif_delmeta -all 1abc.cif > atoms_only.cif
 
 This program is part of the mmcif-tools suite.
@@ -570,8 +575,8 @@ Keeps the data_ line, _atom_site and _struct_conn (the mmCIF counterparts of
 the ATOM/HETATM and CONECT records that pdb_keepcoord keeps); every other
 category is removed, _atom_site_anisotrop included (pdb_keepcoord drops
 ANISOU records too). To keep the metadata that edits do not make stale
-(entry, unit cell, entities, sequences, chemical components), use
-mmcif_delmeta instead.
+(entry, method, unit cell, entities, chains, sequences, chemical
+components), use mmcif_delmeta instead.
 
 Usage:
     mmcif_keepcoord <cif file>

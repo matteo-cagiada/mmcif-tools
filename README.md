@@ -10,7 +10,7 @@ together with Unix pipes: select, delete, edit, convert and inspect structures w
 package needs only the Python standard library (Python 3.9 or newer).
 
 ```bash
-mmcif_fetch 1brs | mmcif_delmeta | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
+mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta > clean.cif
 ```
 
 **CURRENT VERSION: Version 0.1.0, pre-release: 53 available tools**
@@ -38,7 +38,7 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 | | `mmcif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
 | | `mmcif_selmodel` | Keep models (`-1,3`) |
 | | `mmcif_head` | Keep the first N atoms (`-100`) |
-| | `mmcif_delmeta` | Delete the metadata that edits make stale; keep atoms, links, entry, cell, entities (`-all`: atoms only) |
+| | `mmcif_delmeta` | Delete the metadata that edits make stale; keep the rest (entry, method, entities, chains, ...) in step with the atoms (`-all`: atoms only) |
 | | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`), as `pdb_keepcoord` |
 | | `mmcif_intersect` | Keep the atoms of the first file found in all the others |
 | Edit | `mmcif_chain` / `mmcif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |
@@ -68,7 +68,7 @@ The full `--help` text of every tool is in the [tool reference](docs/tools.md).
 
 ## Usage examples and tips
 
-### Start with `mmcif_delmeta`
+### Finish with `mmcif_delmeta`
 
 A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. Most of the rest
 refers to residues by chain and number: validation reports, secondary structure, sequence schemes, binding sites,
@@ -76,13 +76,21 @@ assemblies, and more. The edit tools keep the atoms and their links consistent, 
 renumbering or deleting residues they describe a structure that is no longer there. Simulation and prediction
 programs rarely read them anyway.
 
-`mmcif_delmeta` deletes that metadata and keeps what stays true: the atoms, their links and anisotropic B-factors,
-the entry id, the unit cell and space group, the entities and their sequences, and the chemical components. For
-4HHB that is 10 categories instead of 72, and the file is still valid mmCIF. Use it as the first step of a
-pipeline:
+`mmcif_delmeta` deletes that metadata and keeps what stays true: the atoms, their links and anisotropic B-factors;
+the entry id, method, resolution and release dates; the unit cell and space group; the entities, chains and
+sequences; and the chemical components. It also brings these tables in step with the atoms: chains and entities
+with no atoms left are removed, and the number of molecules and the chains of each entity are recomputed. For
+4HHB that is 14 categories instead of 72, and the file is still valid mmCIF. Run it last, after the edits:
 
 ```bash
-mmcif_fetch 4hhb | mmcif_delmeta | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 > 4hhb_clean.cif
+mmcif_fetch 4hhb | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 | mmcif_delmeta > 4hhb_clean.cif
+```
+
+The kept categories are the ones AlphaFold and ColabFold read from template files, so this also makes templates.
+Without the last step, a file keeps the `_struct_asym` rows of the chains you deleted, and AlphaFold cannot read it:
+
+```bash
+mmcif_fetch 1ubi | mmcif_selchain -A | mmcif_delentity -water | mmcif_delmeta > templates/1ubi.cif
 ```
 
 `mmcif_delmeta -all` keeps only the atoms and links, and `mmcif_keepcat` keeps exactly the categories you list.
@@ -91,7 +99,7 @@ mmcif_fetch 4hhb | mmcif_delmeta | mmcif_delentity -non-polymer,water | mmcif_re
 
 ```bash
 # A clean protein for docking or simulations: one conformer, no ligands or waters, an aligned layout
-mmcif_fetch 4hhb | mmcif_delmeta | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_tidy > 4hhb_protein.cif
+mmcif_fetch 4hhb | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_delmeta | mmcif_tidy > 4hhb_protein.cif
 
 # Chain A with its heme, numbered from 1, as a PDB file for programs that need one
 mmcif_fetch 4hhb | mmcif_selchain -A | mmcif_delentity -water | mmcif_reres -1 | mmcif_topdb > 4hhb_A.pdb

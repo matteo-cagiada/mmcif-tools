@@ -53,9 +53,11 @@ The first version for testers. It is not on PyPI or conda-forge yet; install it 
     column when it is missing; "missing column" errors name the mmCIF column (`type_symbol`, `group_PDB`, ...).
   - `mmcif_merge`, `mmcif_mkensemble` and `mmcif_topdb` say in their help that they use the first data block.
 - **`mmcif_delmeta`** deletes the metadata that edits make stale (validation reports, secondary structure, sequence
-  schemes, sites, assemblies, ...) and keeps the atoms, links, entry, unit cell, entities and sequences, and
-  chemical components; `-all` keeps only the atoms and links. A first step for files meant for simulation or
-  prediction programs.
+  schemes, sites, assemblies, ...) and keeps the atoms, links, entry, method and resolution, release dates, unit
+  cell, entities, chains (`_struct_asym`), sequences and chemical components: what AlphaFold and ColabFold read
+  from template files. Rows of chains and entities with no atoms left are removed, and the number of molecules and
+  the chains of each entity are recomputed, so it is the last step of a pipeline. `-all` keeps only the atoms and
+  links. (A first version deleted `_struct_asym`, and ColabFold rejected its files as templates.)
 - **Checking an installation:** `python tools/smoke_test.py` runs every command and a few pipelines. The full test
   suite stays with the developers and is not part of the public repository.
 - **Known limitation:** after an edit, categories other than `_atom_site`, `_atom_site_anisotrop` and

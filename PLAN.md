@@ -270,11 +270,21 @@ Decided for phase 4 (2026-10-24):
     `tests/` stays in the developers' working copy (git-ignored) and in the history up to commit 36e75f3;
     the `[test]` extra is gone. CI runs `tools/smoke_test.py` (every command, a few pipelines) and the
     tool-reference check on Python 3.9-3.15, Linux, macOS and Windows.
-22. **`mmcif_delmeta`** (2026-10-27): a command of its own for the common first step "drop the metadata
-    that edits make stale", instead of an option of `mmcif_keepcoord` (which stays the counterpart of
-    `pdb_keepcoord`). It keeps `_atom_site`, `_atom_site_anisotrop`, `_struct_conn`, `_entry`, `_cell`,
-    `_symmetry`, `_entity`, `_entity_poly`, `_entity_poly_seq`, `_chem_comp` and `_atom_type`; `-all`
-    keeps the atoms, anisotropic B-factors and links only. 53 tools.
+22. **`mmcif_delmeta`** (2026-10-27): a command of its own for "drop the metadata that edits make stale",
+    instead of an option of `mmcif_keepcoord` (which stays the counterpart of `pdb_keepcoord`). It keeps
+    `_atom_site`, `_atom_site_anisotrop`, `_struct_conn`, `_entry`, `_cell`, `_symmetry`, `_exptl`,
+    `_refine`, `_reflns`, `_em_3d_reconstruction`, `_pdbx_audit_revision_history`, `_entity`,
+    `_entity_poly`, `_entity_poly_seq`, `_struct_asym`, `_chem_comp` and `_atom_type`; `-all` keeps the
+    atoms, anisotropic B-factors and links only. 53 tools.
+    - **AlphaFold/ColabFold templates** (same day, after a user report): ColabFold requires `_chem_comp.id`/`type`,
+      `_struct_asym.id`/`entity_id` and `_entity_poly_seq.mon_id`; AlphaFold's parser also reads the method,
+      resolution and release date, and fails (KeyError) on a `_struct_asym` chain of a protein entity with no
+      atoms in model 1. So the kept set includes these categories, and `_struct_asym`, `_entity`,
+      `_entity_poly` and `_entity_poly_seq` rows of chains and entities without atoms are removed;
+      `_entity.pdbx_number_of_molecules` and `_entity_poly.pdbx_strand_id` are recomputed (unless unknown).
+      `_chem_comp` is not pruned: AlphaFold needs the type of every residue of the sequence, resolved or not.
+      It is therefore the *last* step of a pipeline. Checked by re-implementing those requirements (AlphaFold's
+      own code was not run) on the stress-test entries.
 
 ## 8. Phase 0 status (2026-10-23): done
 
