@@ -114,7 +114,7 @@ For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF.
 mmcif_fetch 4hhb | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 | mmcif_delmeta > 4hhb_clean.cif
 ```
 
-We suggest to run `mmcif_delmeta` as last step after you have completed the strcutrue manipulations.
+We suggest running `mmcif_delmeta` as the last step, after you have completed the structure manipulations.
 
 The kept categories are also those that structure prediction programs read from template or input files (AlphaFold 2
 and 3, ColabFold, OpenFold3, Boltz, Chai-1, Protenix, BioEmu), and MD preparation programs from structures (OpenMM,
@@ -213,8 +213,8 @@ How to cite mmcif-tools is in [CITATION.cff](CITATION.cff); the changes between 
 ## Acknowledgements
 
 Most of the code of mmcif-tools has been written with [Claude Code](https://claude.com/claude-code),
-Anthropic's AI coding assistant, The author design the projects, tools and test to guarantee the quality of the tool.
-We thank the Bonvin Lab for developing and releasing 'PDB-Tools', a fundamental tool for the authors' academic work.
+Anthropic's AI coding assistant. The author designed the project, tools and tests to guarantee the quality of the tool.
+We thank the Bonvin Lab for developing and releasing pdb-tools, a fundamental tool for the authors' academic work.
 
 ## License
 
