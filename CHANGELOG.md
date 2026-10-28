@@ -3,7 +3,7 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
-## 0.1.0 (2026-10-24): first test release
+## 0.1.0 (2026-10-28): first test release
 
 The first version for testers. It is not on PyPI or conda-forge yet; install it from the repository.
 
