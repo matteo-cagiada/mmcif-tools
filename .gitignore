@@ -8,3 +8,5 @@ dist/
 tests/
 .DS_Store
 *.swp
+site/
+.cache/

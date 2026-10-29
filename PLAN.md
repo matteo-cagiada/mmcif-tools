@@ -259,7 +259,11 @@ Decided for phase 4 (2026-10-24):
     AlphaFold DB (ModelCIF) model and an entry with real symmetry operations (1STP) to the real-entry set.
 16. **Docs:** the tool reference `docs/tools.md` is generated from the `--help` texts (`tools/make_docs.py`;
     a test and a CI step check that it is up to date). CHANGELOG.md and CITATION.cff are added. A user guide
-    on GitHub Pages comes later.
+    on GitHub Pages comes later. Done 2026-10-29: a Zensical site (`zensical.toml`; Zensical succeeds
+    Material for MkDocs), built and published by `.github/workflows/docs.yml` (`zensical build --strict`,
+    so broken links and anchors fail). The README stays the one place to edit the guide: `tools/make_docs.py`
+    writes the other pages of `docs/` from its sections and from CHANGELOG.md (PAGES lists which section goes
+    on which page), and `--check` covers them too.
 17. **Version 0.1.0**, a test release: the first users test it from the repository; PyPI and conda-forge come
     after that.
 18. **Python 3.9 stays while it costs nothing** (the code is stdlib only and macOS's own python3 is 3.9); CI

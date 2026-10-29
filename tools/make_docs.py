@@ -16,15 +16,19 @@
 # limitations under the License.
 
 """
-Writes docs/tools.md, the tool reference, from the tools' --help texts.
+Writes the pages of the documentation website (docs/, built by zensical.toml):
 
-Every console script of pyproject.toml must be in one of the GROUPS below.
-CI checks that docs/tools.md is up to date (--check), so run this after
-changing a help text or adding a tool.
+- docs/tools.md, the tool reference, from the tools' --help texts. Every
+  console script of pyproject.toml must be in one of the GROUPS below.
+- the other pages from the sections of README.md (see PAGES) and from
+  CHANGELOG.md, so that the README stays the one place to edit that text.
+
+CI checks that the pages are up to date (--check), so run this after
+changing a help text, the README or the changelog, or adding a tool.
 
 Usage:
-    python tools/make_docs.py           # writes docs/tools.md
-    python tools/make_docs.py --check   # exit 1 if docs/tools.md is out of date
+    python tools/make_docs.py           # writes the pages in docs/
+    python tools/make_docs.py --check   # exit 1 if a page is out of date
 """
 
 import importlib
@@ -33,8 +37,23 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT = os.path.join(ROOT, 'docs', 'tools.md')
+DOCS = os.path.join(ROOT, 'docs')
+OUTPUT = os.path.join(DOCS, 'tools.md')
+REPOSITORY = 'https://github.com/matteo-cagiada/mmcif-tools'
 sys.path.insert(0, ROOT)
+
+# The pages made from README.md: (file, title, the README sections it holds). A section is a "## " heading of
+# the README; '' is the text before the first one. Every section must be on a page. A section named like its
+# page goes under the page title, its headings one level up; the others keep their heading.
+PAGES = [
+    ('index.md', None, ['', 'Tools']),
+    ('installation.md', 'Installation', ['Installation', 'Extra tools']),
+    ('usage.md', 'Usage examples and tips', ['Usage examples and tips']),
+    ('mmcif.md', 'Things to know about mmCIF', ['Things to know about mmCIF']),
+    ('pdb-tools.md', 'Coming from pdb-tools', ['Coming from pdb-tools']),
+    ('about.md', 'Citation and license', ['Citation and changes', 'Acknowledgements', 'License']),
+]
+GENERATED = ('<!-- Generated from {} by tools/make_docs.py: edit {} and run python tools/make_docs.py. -->\n\n')
 
 GROUPS = [
     ('Fetch / convert', ['fetch', 'topdb', 'frompdb']),
@@ -87,26 +106,133 @@ def render():
     return ''.join(out)
 
 
+def read(name):
+    with open(os.path.join(ROOT, name), encoding='utf-8') as fh:
+        return fh.read()
+
+
+def code_lines(text):
+    """(line, inside a fenced code block) for each line of text; the fences count as code."""
+    fenced = False
+    for line in text.splitlines(True):
+        if line.lstrip().startswith('```'):
+            fenced = not fenced
+            yield line, True
+        else:
+            yield line, fenced
+
+
+def slug(heading):
+    """The anchor of a heading, as Zensical (and GitHub, for the README's headings) makes it."""
+    text = re.sub(r'[^\w\s-]', '', heading).strip().lower()
+    return re.sub(r'[-\s]+', '-', text)
+
+
+def readme_sections(text):
+    """{heading: text} of the "## " sections of the README; '' is the text before the first one."""
+    sections, current = {'': []}, ''
+    for line, code in code_lines(text):
+        match = None if code else re.match(r'## (.+)\n', line)
+        if match:
+            current = match.group(1).strip()
+            sections[current] = []
+        else:
+            sections[current].append(line)
+    return {name: ''.join(lines).strip('\n') + '\n' for name, lines in sections.items()}
+
+
+def promote(text):
+    """text with its headings one level up ("### " becomes "## ")."""
+    return ''.join(line[1:] if not code and re.match(r'#{3,} ', line) else line for line, code in code_lines(text))
+
+
+def relink(text, anchors, page):
+    """text with the README's links made to work on the site: other pages, or files of the repository."""
+    def link(match):
+        url = match.group(1)
+        if re.match(r'[a-z]+:', url):
+            return match.group(0)
+        if url.startswith('#'):
+            if url[1:] not in anchors:
+                raise SystemExit('make_docs.py: no heading for the link {} of the README'.format(url))
+            target = anchors[url[1:]]
+            return '](' + (target[len(page):] if target.startswith(page + '#') else target) + ')'
+        path, sep, anchor = url.partition('#')
+        if path.startswith('docs/'):
+            path = path[len('docs/'):]
+        elif path in ('README.md', 'CHANGELOG.md'):
+            path = {'README.md': 'index.md', 'CHANGELOG.md': 'changelog.md'}[path]
+        else:
+            return '](' + REPOSITORY + '/blob/main/' + url + ')'
+        return '](' + path + sep + anchor + ')'
+    return ''.join(line if code else re.sub(r'\]\(([^)\s]+)\)', link, line) for line, code in code_lines(text))
+
+
+def site_pages():
+    """{file name: text} of the pages made from README.md and CHANGELOG.md."""
+    sections = readme_sections(read('README.md'))
+    placed = [s for _, _, names in PAGES for s in names]
+    missing = [s for s in sections if s not in placed]
+    unknown = [s for s in placed if s not in sections]
+    if missing or unknown:
+        raise SystemExit('make_docs.py: PAGES is out of step with the sections of README.md '
+                         '(missing: {}; unknown: {})'.format(missing, unknown))
+    anchors = {}  # the README's anchors, as links on the site
+    for page, title, names in PAGES:
+        for section in filter(None, names):
+            anchors[slug(section)] = page if section == title else '{}#{}'.format(page, slug(section))
+            for line, code in code_lines(sections[section]):
+                match = None if code else re.match(r'#{3,} (.+)\n', line)
+                if match:
+                    anchors[slug(match.group(1))] = '{}#{}'.format(page, slug(match.group(1)))
+    pages = {}
+    for page, title, names in PAGES:
+        parts = [GENERATED.format('README.md', 'README.md')] + (['# {}\n\n'.format(title)] if title else [])
+        for section in names:
+            text = sections[section]
+            if section == title:
+                text = promote(text)
+            elif section:
+                text = '## {}\n\n{}'.format(section, text)
+            parts.append(relink(text, anchors, page) + '\n')
+        pages[page] = ''.join(parts).rstrip('\n') + '\n'
+    pages['changelog.md'] = (GENERATED.format('CHANGELOG.md', 'CHANGELOG.md') +
+                             relink(read('CHANGELOG.md'), anchors, 'changelog.md'))
+    return pages
+
+
+def outputs():
+    """{path: text} of every page this script writes."""
+    pages = {OUTPUT: render()}
+    pages.update((os.path.join(DOCS, name), text) for name, text in site_pages().items())
+    return pages
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    text = render()
+    pages = outputs()
     if argv == ['--check']:
-        try:
-            with open(OUTPUT, encoding='utf-8') as fh:
-                current = fh.read()
-        except OSError:
-            current = None
-        if current != text:
-            sys.stderr.write('docs/tools.md is out of date: run python tools/make_docs.py\n')
+        stale = []
+        for path, text in pages.items():
+            try:
+                with open(path, encoding='utf-8') as fh:
+                    current = fh.read()
+            except OSError:
+                current = None
+            if current != text:
+                stale.append(os.path.relpath(path, ROOT).replace(os.sep, '/'))
+        if stale:
+            sys.stderr.write('{} out of date: run python tools/make_docs.py\n'.format(', '.join(stale)))
             return 1
         return 0
     if argv:
         sys.stderr.write(__doc__)
         return 1
-    os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
-    with open(OUTPUT, 'w', encoding='utf-8', newline='\n') as fh:
-        fh.write(text)
-    print('wrote {}'.format(os.path.relpath(OUTPUT, ROOT)))
+    os.makedirs(DOCS, exist_ok=True)
+    for path, text in pages.items():
+        with open(path, 'w', encoding='utf-8', newline='\n') as fh:
+            fh.write(text)
+        print('wrote {}'.format(os.path.relpath(path, ROOT)))
     return 0
 
 

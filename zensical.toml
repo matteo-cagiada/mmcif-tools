@@ -1,0 +1,58 @@
+# The documentation website, built with Zensical and published to GitHub Pages by .github/workflows/docs.yml.
+# The pages in docs/ are written by tools/make_docs.py: edit README.md, CHANGELOG.md or the help texts,
+# then run python tools/make_docs.py. To preview: pip install zensical, then zensical serve.
+
+[project]
+site_name = "mmcif-tools"
+site_description = "Small, pipeable command-line tools to select, edit and inspect mmCIF files (standard library only)."
+site_author = "Matteo Cagiada"
+site_url = "https://matteo-cagiada.github.io/mmcif-tools/"
+repo_url = "https://github.com/matteo-cagiada/mmcif-tools"
+repo_name = "matteo-cagiada/mmcif-tools"
+copyright = "Copyright 2026 the mmcif-tools authors. Apache-2.0."
+docs_dir = "docs"
+site_dir = "site"
+nav = [
+  { "Home" = "index.md" },
+  { "Installation" = "installation.md" },
+  { "Usage examples and tips" = "usage.md" },
+  { "Tool reference" = "tools.md" },
+  { "Things to know about mmCIF" = "mmcif.md" },
+  { "Coming from pdb-tools" = "pdb-tools.md" },
+  { "Changelog" = "changelog.md" },
+  { "Citation and license" = "about.md" },
+]
+
+[project.theme]
+# No content.action.edit: the pages are generated, so they are edited in README.md.
+features = [
+  "content.code.copy",
+  "navigation.top",
+  "navigation.footer",
+  "search.highlight",
+  "toc.follow",
+]
+
+# Light and dark, following the system setting, with a toggle.
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "indigo"
+toggle.icon = "lucide/moon"
+toggle.name = "Dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "indigo"
+toggle.icon = "lucide/sun"
+toggle.name = "Light mode"
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+tables = {}
+toc.permalink = true
+pymdownx.highlight = {}
+pymdownx.inlinehilite = {}
+pymdownx.superfences = {}

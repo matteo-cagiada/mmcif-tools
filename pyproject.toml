@@ -33,7 +33,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/matteo-cagiada/mmcif-tools"
-Documentation = "https://github.com/matteo-cagiada/mmcif-tools/blob/main/docs/tools.md"
+Documentation = "https://matteo-cagiada.github.io/mmcif-tools/"
 Changelog = "https://github.com/matteo-cagiada/mmcif-tools/blob/main/CHANGELOG.md"
 Issues = "https://github.com/matteo-cagiada/mmcif-tools/issues"
 
