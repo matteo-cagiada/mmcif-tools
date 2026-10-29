@@ -4,8 +4,10 @@
 
 ## Citation and changes
 
-How to cite mmcif-tools is in [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff); the changes between versions are in
-[CHANGELOG.md](changelog.md). [PLAN.md](https://github.com/matteo-cagiada/mmcif-tools/blob/main/PLAN.md) records the design decisions and the test results.
+How to cite mmcif-tools is in [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff);
+the changes between versions are in the [changelog](changelog.md).
+[PLAN.md](https://github.com/matteo-cagiada/mmcif-tools/blob/main/PLAN.md) records the design decisions and the test
+results.
 
 ## Acknowledgements
 

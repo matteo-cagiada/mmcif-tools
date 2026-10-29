@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use mmcif-tools, please cite it as below."
 title: "mmcif-tools: command-line tools for mmCIF files"
 type: software
-version: 0.1.0
-date-released: "2026-10-28"
+version: 0.1.1
+date-released: "2026-10-29"
 license: Apache-2.0
 repository-code: "https://github.com/matteo-cagiada/mmcif-tools"
 abstract: >-

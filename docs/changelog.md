@@ -5,6 +5,16 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
+## 0.1.1 (2026-10-29): on PyPI
+
+No changes to the tools.
+
+- **On PyPI:** `python -m pip install mmcif-tools`. Releases are built, checked and uploaded by
+  `.github/workflows/release.yml`, with PyPI's Trusted Publishing.
+- **Documentation website:** <https://matteo-cagiada.github.io/mmcif-tools/>, made from the README, the help texts
+  and this changelog.
+- The README installs from PyPI first, and its links are full URLs, so they also work on PyPI.
+
 ## 0.1.0 (2026-10-28): first test release
 
 The first version for testers. It is not on PyPI or conda-forge yet; install it from the repository.

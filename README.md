@@ -13,7 +13,7 @@ package needs only the Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.1.0, pre-release: 53 available tools**
+**CURRENT VERSION: Version 0.1.1, pre-release: 53 available tools**
 
 
 ## Tools
@@ -22,7 +22,7 @@ mmcif-tools reads the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDB
 structure prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF is currently not
 supported.
 
-The full `--help` text of every tool is in the [tool reference](docs/tools.md).
+The full `--help` text of every tool is in the [tool reference](https://matteo-cagiada.github.io/mmcif-tools/tools/).
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -179,14 +179,22 @@ Most tools have the pdb-tools name with `mmcif_` for `pdb_` and the same options
 ## Installation
 
 ```bash
+python -m pip install mmcif-tools
+```
+
+There are no runtime dependencies. For tab completion of the `mmcif_*` commands, open a new terminal after
+installing (or run `rehash` in an open zsh terminal).
+
+The extra tools below are in the repository, not in the package. To install from the repository instead,
+`python tools/smoke_test.py` then checks the installation: every command runs, and a few pipelines give the
+expected results.
+
+```bash
 git clone https://github.com/matteo-cagiada/mmcif-tools.git
 cd mmcif-tools
 python -m pip install .
+python tools/smoke_test.py
 ```
-
-There are no runtime dependencies. `python tools/smoke_test.py` then checks the installation: every command runs,
-and a few pipelines give the expected results. For tab completion of the `mmcif_*` commands, open a new terminal
-after installing (or run `rehash` in an open zsh terminal).
 
 ## Extra tools
 
@@ -202,13 +210,17 @@ after installing (or run `rehash` in an open zsh terminal).
   mmcif_selchain -A 1abc.cif | python tools/check_with_gemmi.py --dict mmcif_pdbx_v50.dic -
   ```
 
-- **`tools/make_docs.py`** writes the [tool reference](docs/tools.md) from the `--help` texts.
-- **`tools/smoke_test.py`** checks an installation (see [Installation](#installation)).
+- **`tools/make_docs.py`** writes the [tool reference](https://matteo-cagiada.github.io/mmcif-tools/tools/) and
+  the other pages of the [documentation website](https://matteo-cagiada.github.io/mmcif-tools/).
+- **`tools/smoke_test.py`** checks an installation (see
+  [Installation](https://matteo-cagiada.github.io/mmcif-tools/installation/)).
 
 ## Citation and changes
 
-How to cite mmcif-tools is in [CITATION.cff](CITATION.cff); the changes between versions are in
-[CHANGELOG.md](CHANGELOG.md). [PLAN.md](PLAN.md) records the design decisions and the test results.
+How to cite mmcif-tools is in [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff);
+the changes between versions are in the [changelog](https://matteo-cagiada.github.io/mmcif-tools/changelog/).
+[PLAN.md](https://github.com/matteo-cagiada/mmcif-tools/blob/main/PLAN.md) records the design decisions and the test
+results.
 
 ## Acknowledgements
 
@@ -218,4 +230,4 @@ We thank the Bonvin Lab for developing and releasing pdb-tools, a fundamental to
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/matteo-cagiada/mmcif-tools/blob/main/LICENSE).

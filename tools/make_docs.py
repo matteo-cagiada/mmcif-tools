@@ -40,6 +40,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, 'docs')
 OUTPUT = os.path.join(DOCS, 'tools.md')
 REPOSITORY = 'https://github.com/matteo-cagiada/mmcif-tools'
+SITE = 'https://matteo-cagiada.github.io/mmcif-tools/'  # the documentation website (zensical.toml)
 sys.path.insert(0, ROOT)
 
 # The pages made from README.md: (file, title, the README sections it holds). A section is a "## " heading of
@@ -150,6 +151,9 @@ def relink(text, anchors, page):
     """text with the README's links made to work on the site: other pages, or files of the repository."""
     def link(match):
         url = match.group(1)
+        if url.startswith(SITE):  # a page of the site itself (so that the build checks it): its file
+            path, sep, anchor = url[len(SITE):].partition('#')
+            return '](' + (path.strip('/') or 'index') + '.md' + sep + anchor + ')'
         if re.match(r'[a-z]+:', url):
             return match.group(0)
         if url.startswith('#'):

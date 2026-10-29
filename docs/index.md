@@ -15,7 +15,7 @@ package needs only the Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.1.0, pre-release: 53 available tools**
+**CURRENT VERSION: Version 0.1.1, pre-release: 53 available tools**
 
 ## Tools
 

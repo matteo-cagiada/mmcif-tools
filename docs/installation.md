@@ -3,14 +3,22 @@
 # Installation
 
 ```bash
+python -m pip install mmcif-tools
+```
+
+There are no runtime dependencies. For tab completion of the `mmcif_*` commands, open a new terminal after
+installing (or run `rehash` in an open zsh terminal).
+
+The extra tools below are in the repository, not in the package. To install from the repository instead,
+`python tools/smoke_test.py` then checks the installation: every command runs, and a few pipelines give the
+expected results.
+
+```bash
 git clone https://github.com/matteo-cagiada/mmcif-tools.git
 cd mmcif-tools
 python -m pip install .
+python tools/smoke_test.py
 ```
-
-There are no runtime dependencies. `python tools/smoke_test.py` then checks the installation: every command runs,
-and a few pipelines give the expected results. For tab completion of the `mmcif_*` commands, open a new terminal
-after installing (or run `rehash` in an open zsh terminal).
 
 ## Extra tools
 
@@ -26,5 +34,7 @@ after installing (or run `rehash` in an open zsh terminal).
   mmcif_selchain -A 1abc.cif | python tools/check_with_gemmi.py --dict mmcif_pdbx_v50.dic -
   ```
 
-- **`tools/make_docs.py`** writes the [tool reference](tools.md) from the `--help` texts.
-- **`tools/smoke_test.py`** checks an installation (see [Installation](installation.md)).
+- **`tools/make_docs.py`** writes the [tool reference](tools.md) and
+  the other pages of the [documentation website](index.md).
+- **`tools/smoke_test.py`** checks an installation (see
+  [Installation](installation.md)).
