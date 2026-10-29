@@ -1,5 +1,10 @@
 # mmcif-tools
 
+### [mmcif-tools.dev](https://mmcif-tools.dev/)
+
+Run the tools [in your browser](https://mmcif-tools.dev/app/), with nothing to install, or read
+the [documentation](https://mmcif-tools.dev/docs/).
+
 mmcif-tools is an independent project whose style and much of its tool set are inspired by
 [pdb-tools](https://www.bonvinlab.org/pdb-tools/) (Rodrigues JPGLM, Teixeira JMC, Trellet M and Bonvin AMJJ,
 *F1000Research* 2018, 7:1961). mmcif-tools ports and expands the pdb-tools functionality to the mmCIF (PDBx/mmCIF)
@@ -22,7 +27,7 @@ mmcif-tools reads the mmCIF text format, as written by the PDB (wwPDB, RCSB, PDB
 structure prediction and modelling programs and viewers, plain or gzip-compressed. BinaryCIF is currently not
 supported.
 
-The full `--help` text of every tool is in the [tool reference](https://matteo-cagiada.github.io/mmcif-tools/tools/).
+The full `--help` text of every tool is in the [tool reference](https://mmcif-tools.dev/docs/tools/).
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -210,15 +215,15 @@ python tools/smoke_test.py
   mmcif_selchain -A 1abc.cif | python tools/check_with_gemmi.py --dict mmcif_pdbx_v50.dic -
   ```
 
-- **`tools/make_docs.py`** writes the [tool reference](https://matteo-cagiada.github.io/mmcif-tools/tools/) and
-  the other pages of the [documentation website](https://matteo-cagiada.github.io/mmcif-tools/).
+- **`tools/make_docs.py`** writes the [tool reference](https://mmcif-tools.dev/docs/tools/) and
+  the other pages of the [documentation](https://mmcif-tools.dev/docs/).
 - **`tools/smoke_test.py`** checks an installation (see
-  [Installation](https://matteo-cagiada.github.io/mmcif-tools/installation/)).
+  [Installation](https://mmcif-tools.dev/docs/installation/)).
 
 ## Citation and changes
 
 How to cite mmcif-tools is in [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff);
-the changes between versions are in the [changelog](https://matteo-cagiada.github.io/mmcif-tools/changelog/).
+the changes between versions are in the [changelog](https://mmcif-tools.dev/docs/changelog/).
 [PLAN.md](https://github.com/matteo-cagiada/mmcif-tools/blob/main/PLAN.md) records the design decisions and the test
 results.
 

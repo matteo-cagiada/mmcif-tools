@@ -1,4 +1,5 @@
-# The documentation website, built with Zensical and published to GitHub Pages by .github/workflows/docs.yml.
+# The documentation, built with Zensical into the docs/ part of the website (site/docs/); .github/workflows/docs.yml
+# adds the main page and the in-browser page (web/) and publishes it to GitHub Pages.
 # The pages in docs/ are written by tools/make_docs.py: edit README.md, CHANGELOG.md or the help texts,
 # then run python tools/make_docs.py. To preview: pip install zensical, then zensical serve.
 
@@ -6,12 +7,12 @@
 site_name = "mmcif-tools"
 site_description = "Small, pipeable command-line tools to select, edit and inspect mmCIF files (standard library only)."
 site_author = "Matteo Cagiada"
-site_url = "https://matteo-cagiada.github.io/mmcif-tools/"
+site_url = "https://mmcif-tools.dev/docs/"
 repo_url = "https://github.com/matteo-cagiada/mmcif-tools"
 repo_name = "matteo-cagiada/mmcif-tools"
 copyright = "Copyright 2026 the mmcif-tools authors. Apache-2.0."
 docs_dir = "docs"
-site_dir = "site"
+site_dir = "site/docs"
 nav = [
   { "Home" = "index.md" },
   { "Installation" = "installation.md" },
@@ -21,6 +22,7 @@ nav = [
   { "Coming from pdb-tools" = "pdb-tools.md" },
   { "Changelog" = "changelog.md" },
   { "Citation and license" = "about.md" },
+  { "Run in your browser" = "https://mmcif-tools.dev/app/" },
 ]
 
 [project.theme]

@@ -263,7 +263,12 @@ Decided for phase 4 (2026-10-24):
     Material for MkDocs), built and published by `.github/workflows/docs.yml` (`zensical build --strict`,
     so broken links and anchors fail). The README stays the one place to edit the guide: `tools/make_docs.py`
     writes the other pages of `docs/` from its sections and from CHANGELOG.md (PAGES lists which section goes
-    on which page), and `--check` covers them too.
+    on which page), and `--check` covers them too. Then one website for everything (2026-10-29): a main page
+    (`web/index.html`), the documentation under `/docs/` and mmcif-tools in the browser under `/app/`
+    (`web/app/`: Pyodide, with the latest release from PyPI, which the workflow checks and pins; it also runs
+    after each release), on its own domain, `mmcif-tools.dev` (GitHub forwards the github.io addresses). The
+    old page addresses forward to `/docs/`, since the README of 0.1.1 on PyPI links to them. A separate repository for the in-browser page was tried first and dropped: two repositories
+    and two sites were harder to follow than one.
 17. **Version 0.1.0**, a test release: the first users test it from the repository; PyPI and conda-forge come
     after that. PyPI from 0.1.1 (2026-10-29, no tool changes): `.github/workflows/release.yml` builds the sdist
     and the wheel, checks them (`twine check --strict`, the smoke test on the installed wheel) and uploads them

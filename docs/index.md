@@ -2,6 +2,11 @@
 
 # mmcif-tools
 
+### [mmcif-tools.dev](https://mmcif-tools.dev/)
+
+Run the tools [in your browser](https://mmcif-tools.dev/app/), with nothing to install, or read
+the [documentation](index.md).
+
 mmcif-tools is an independent project whose style and much of its tool set are inspired by
 [pdb-tools](https://www.bonvinlab.org/pdb-tools/) (Rodrigues JPGLM, Teixeira JMC, Trellet M and Bonvin AMJJ,
 *F1000Research* 2018, 7:1961). mmcif-tools ports and expands the pdb-tools functionality to the mmCIF (PDBx/mmCIF)

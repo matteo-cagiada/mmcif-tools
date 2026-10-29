@@ -3,6 +3,17 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
+## Unreleased
+
+No changes to the tools.
+
+- **One website, on its own domain:** <https://mmcif-tools.dev/>, with a main page, the documentation under
+  [docs/](https://mmcif-tools.dev/docs/) (the old addresses, on matteo-cagiada.github.io, forward there), and
+  **mmcif-tools in the browser** under [app/](https://mmcif-tools.dev/app/): it runs the
+  tools on your files with Pyodide (Python in WebAssembly), with nothing to install, and the files never leave
+  your computer. It installs the latest release from PyPI. Its code is in `web/`.
+- The README links to the website under its title.
+
 ## 0.1.1 (2026-10-29): on PyPI
 
 No changes to the tools.

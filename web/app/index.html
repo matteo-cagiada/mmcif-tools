@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mmcif-tools in the browser</title>
+<meta name="description" content="Run mmcif-tools on mmCIF files in the browser, with Pyodide. Files are never uploaded.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #5f5e5a;
+    --border: #dcdbd6;
+    --accent: #1f5fbf;
+    --accent-text: #ffffff;
+    --code-bg: #f0efeb;
+    --ok: #1b7a3d;
+    --error: #b42318;
+    --error-bg: #fdf0ef;
+    --warn: #8a5a00;
+    --warn-bg: #fbf4e4;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615;
+      --surface: #1f1f1d;
+      --text: #ecebe6;
+      --muted: #a7a59d;
+      --border: #3a3936;
+      --accent: #7aa7ec;
+      --accent-text: #0f1a2b;
+      --code-bg: #2a2a27;
+      --ok: #6fcf8f;
+      --error: #ff8a80;
+      --error-bg: #3a1f1d;
+      --warn: #e7c06a;
+      --warn-bg: #352c18;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  code, pre, kbd { font-family: var(--mono); font-size: 0.875rem; }
+  .lede { margin: 0 0 12px; color: var(--muted); max-width: 70ch; }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.9rem; color: var(--muted); }
+  .status.error { color: var(--error); }
+  .spinner {
+    width: 14px; height: 14px; flex: none;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  button, .button {
+    font: inherit; font-size: 0.9rem;
+    padding: 6px 12px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text);
+    cursor: pointer; text-decoration: none; display: inline-block;
+  }
+  button:hover:not(:disabled), .button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary, .button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.icon { padding: 2px 8px; line-height: 1.4; }
+  input[type=text], select {
+    font: inherit; font-size: 0.9rem;
+    padding: 5px 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text);
+    min-width: 0;
+  }
+  input[type=text] { font-family: var(--mono); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .drop {
+    display: block; border: 2px dashed var(--border); border-radius: 8px;
+    padding: 20px 16px; text-align: center; color: var(--muted); cursor: pointer;
+  }
+  .drop.over, .drop:hover { border-color: var(--accent); color: var(--text); }
+  .drop input { display: none; }
+  .drop strong { color: var(--accent); }
+  .files { list-style: none; margin: 12px 0 0; padding: 0; }
+  .files li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .files li:first-child { border-top: 0; }
+  .files .name { font-family: var(--mono); font-size: 0.875rem; overflow-wrap: anywhere; flex: 1; }
+  .files .size { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+  .files-note { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .step { border-top: 1px solid var(--border); padding: 10px 0; }
+  .step:first-child { border-top: 0; padding-top: 0; }
+  .step-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .step-num {
+    width: 24px; height: 24px; flex: none; border-radius: 50%;
+    background: var(--code-bg); color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;
+  }
+  .step select { flex: 0 1 220px; font-family: var(--mono); }
+  .option { display: inline-flex; align-items: center; flex: 1 1 220px; min-width: 160px; }
+  .option .dash { font-family: var(--mono); color: var(--muted); padding: 0 4px 0 0; }
+  .option input { flex: 1; }
+  .label-opt { font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; color: var(--muted); }
+  .summary { margin: 4px 0 0 32px; font-size: 0.875rem; color: var(--muted); }
+  .hint { margin: 4px 0 0 32px; font-size: 0.85rem; color: var(--warn); }
+  .hint.bad { color: var(--error); }
+  .help { margin: 8px 0 0 32px; padding: 12px; background: var(--code-bg); border-radius: 6px; overflow-x: auto; white-space: pre; }
+  .pipeline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+  .pipeline-actions .spacer { flex: 1; }
+  .command { margin-top: 12px; font-size: 0.85rem; color: var(--muted); }
+  .command code { display: block; margin-top: 4px; padding: 8px 10px; background: var(--code-bg); border-radius: 6px; color: var(--text); overflow-wrap: anywhere; }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td code { white-space: pre; }
+  .ok { color: var(--ok); }
+  .bad { color: var(--error); }
+  .total td { border-bottom: 0; font-weight: 600; }
+  .messages { margin-top: 12px; }
+  .message { margin: 8px 0 0; padding: 10px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }
+  .message.bad { background: var(--error-bg); color: var(--error); }
+  .output-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+  .output-head .info { flex: 1; font-size: 0.875rem; color: var(--muted); }
+  .output {
+    margin: 8px 0 0; padding: 12px; max-height: 480px; overflow: auto;
+    background: var(--code-bg); border-radius: 6px; white-space: pre;
+  }
+  .notes ul { margin: 0; padding-left: 20px; }
+  .notes li { margin: 4px 0; }
+  .notes p { margin: 8px 0 0; font-size: 0.9rem; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>mmcif-tools in the browser</h1>
+    <p class="lede">Run <a href="../">mmcif-tools</a>
+      (<a href="../docs/">documentation</a>) on your
+      mmCIF files without installing anything. The tools run inside this page with
+      <a href="https://pyodide.org">Pyodide</a> (Python compiled to WebAssembly): your files are read on
+      your computer and are never uploaded.</p>
+    <p class="status" id="status"><span class="spinner"></span><span id="status-text">Loading Python…</span></p>
+  </header>
+
+  <section aria-labelledby="files-title">
+    <h2 id="files-title">1. Open files</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file-input" multiple accept=".cif,.mmcif,.gz,.pdb,.ent">
+      <strong>Choose mmCIF files</strong> (.cif or .cif.gz) or drop them here
+    </label>
+    <ul class="files" id="files"></ul>
+    <p class="files-note" id="files-note" hidden></p>
+  </section>
+
+  <section aria-labelledby="pipeline-title">
+    <h2 id="pipeline-title">2. Choose the tools</h2>
+    <ol class="steps" id="steps"></ol>
+    <div class="pipeline-actions">
+      <button id="add-step" type="button" disabled>Add a step</button>
+      <span class="spacer"></span>
+      <button id="stop" type="button" hidden>Stop</button>
+      <button id="run" type="button" class="primary" disabled>Run</button>
+    </div>
+    <div class="command" id="command-box" hidden>Same as the command line:
+      <code id="command"></code></div>
+  </section>
+
+  <section aria-labelledby="result-title" id="result" hidden>
+    <h2 id="result-title">3. Result</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Step</th><th>Command</th><th>Exit</th><th class="num">Time</th><th class="num">Output</th></tr></thead>
+      <tbody id="result-rows"></tbody>
+    </table></div>
+    <div class="messages" id="messages"></div>
+    <div class="output-head" id="output-head" hidden>
+      <span class="info" id="output-info"></span>
+      <a class="button primary" id="download" download>Download</a>
+    </div>
+    <pre class="output" id="output" hidden></pre>
+  </section>
+
+  <section class="notes" aria-labelledby="notes-title">
+    <h2 id="notes-title">What runs here</h2>
+    <ul>
+      <li>Each tool runs as on the command line (<code>mmcif_selchain -A file.cif</code>), and each step of
+        the pipeline reads the output of the step before. Use <code>?</code> to read a tool's help.</li>
+      <li><code>mmcif_fetch</code> is not available: it downloads files, which Python cannot do inside
+        the browser. Download the file from the <a href="https://www.rcsb.org">RCSB</a> or the
+        <a href="https://alphafold.ebi.ac.uk">AlphaFold DB</a> and open it here.</li>
+      <li><code>mmcif_splitchain</code> and <code>mmcif_splitmodel</code> write one file per chain or
+        model: they must be the last step, and you download the files as a zip.</li>
+      <li><code>mmcif_merge</code>, <code>mmcif_mkensemble</code> and <code>mmcif_intersect</code> read
+        all the opened files, in the order of the list, and <code>mmcif_frompdb</code> reads a PDB file:
+        they must be the first step. Tools that write something other than mmCIF (reports, tables,
+        FASTA, PDB) must be the last.</li>
+      <li>Python in the browser is about 1.5 times slower than on your computer. Files of up to about
+        2.5 million atoms (250 MB) work; bigger ones get slow, and <code>mmcif_sort</code> and
+        <code>mmcif_assembly</code>, which hold all the atoms in memory, can run out of memory (Python
+        then restarts). For big files or many files, install mmcif-tools:
+        <code>pip install mmcif-tools</code>.</li>
+    </ul>
+    <p id="versions"></p>
+  </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

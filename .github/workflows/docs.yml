@@ -1,12 +1,20 @@
 name: docs
 
-# Builds the documentation website (zensical.toml) and publishes it to GitHub Pages
-# (Settings > Pages > Source: GitHub Actions). Pull requests only build it.
+# Builds the website, https://mmcif-tools.dev/, and publishes it to GitHub Pages (Settings > Pages: Source:
+# GitHub Actions; Custom domain: mmcif-tools.dev, so GitHub forwards matteo-cagiada.github.io/mmcif-tools/...):
+# - /        the main page (web/index.html);
+# - /docs/   the documentation (zensical.toml);
+# - /app/    mmcif-tools in the browser (web/app/), with the latest release of mmcif-tools on PyPI.
+# The pages of the first website (/tools/, /installation/, ...) forward to their place under /docs/.
+# Pull requests only build it. It also runs after a release, so that the in-browser page gets the new version.
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +26,10 @@ concurrency:
 
 jobs:
   build:
+    # after a release: only one to PyPI that worked (not a TestPyPI run)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'release' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,8 +40,66 @@ jobs:
         run: python tools/make_docs.py --check
       - name: Install Zensical
         run: python -m pip install zensical==0.0.73
-      - name: Build (broken links and anchors fail)
+      - name: Build the documentation (broken links and anchors fail)
         run: zensical build --clean --strict
+      - name: The in-browser page runs a pipeline with the latest release on PyPI
+        working-directory: web/app
+        run: |
+          version=$(curl -fsS https://pypi.org/pypi/mmcif-tools/json | python -c "import json, sys; print(json.load(sys.stdin)['info']['version'])")
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          python -m pip install "mmcif-tools==$version"
+          python -c "import json, runner; other = [t['name'] for t in json.loads(runner.tools()) if t['group'] == 'Other']; other and print('::warning::Tools missing from GROUPS in web/app/runner.py:', *other)"
+          cat > "$RUNNER_TEMP/tiny.cif" <<'EOF'
+          data_tiny
+          loop_
+          _atom_site.group_PDB
+          _atom_site.id
+          _atom_site.type_symbol
+          _atom_site.label_atom_id
+          _atom_site.label_alt_id
+          _atom_site.label_comp_id
+          _atom_site.label_asym_id
+          _atom_site.label_entity_id
+          _atom_site.label_seq_id
+          _atom_site.pdbx_PDB_ins_code
+          _atom_site.Cartn_x
+          _atom_site.Cartn_y
+          _atom_site.Cartn_z
+          _atom_site.occupancy
+          _atom_site.B_iso_or_equiv
+          _atom_site.auth_seq_id
+          _atom_site.auth_asym_id
+          _atom_site.pdbx_PDB_model_num
+          ATOM   1 N N  . GLY A 1 1 ? 0.000 0.000 0.000 1.00 10.00 1 A 1
+          ATOM   2 C CA . GLY A 1 1 ? 1.458 0.000 0.000 1.00 10.00 1 A 1
+          ATOM   3 N N  . GLY B 1 1 ? 5.000 0.000 0.000 1.00 10.00 1 B 1
+          HETATM 4 O O  . HOH C 2 . ? 9.000 0.000 0.000 1.00 20.00 2 A 1
+          EOF
+          python runner.py 'selchain:A | delhetatm | tidy | wc' "$RUNNER_TEMP/tiny.cif"
+      - name: Add the main page, the in-browser page (with that release) and the forwarding pages
+        run: |
+          cp web/index.html site/
+          mkdir site/app
+          cp web/app/index.html web/app/app.js web/app/worker.js web/app/runner.py site/app/
+          sed -i "s/^const MMCIF_TOOLS_VERSION = '';$/const MMCIF_TOOLS_VERSION = '$VERSION';/" site/app/worker.js
+          grep -q "^const MMCIF_TOOLS_VERSION = '$VERSION';$" site/app/worker.js
+          for page in installation usage tools mmcif pdb-tools changelog about; do
+            mkdir "site/$page"
+            cat > "site/$page/index.html" <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <title>Moved to docs/$page/</title>
+          <link rel="canonical" href="https://mmcif-tools.dev/docs/$page/">
+          <meta name="robots" content="noindex">
+          <script>location.replace('../docs/$page/' + location.hash);</script>
+          <noscript><meta http-equiv="refresh" content="0; url=../docs/$page/"></noscript>
+          </head>
+          <body><p>This page is now at <a href="../docs/$page/">docs/$page/</a>.</p></body>
+          </html>
+          EOF
+          done
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site

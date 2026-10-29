@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mmcif-tools</title>
+<meta name="description" content="Small, pipeable command-line tools to select, edit and inspect mmCIF files. Documentation, and the tools in the browser.">
+<style>
+  /* The colours of the in-browser page (app/index.html). */
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #5f5e5a;
+    --border: #dcdbd6;
+    --accent: #1f5fbf;
+    --code-bg: #f0efeb;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615;
+      --surface: #1f1f1d;
+      --text: #ecebe6;
+      --muted: #a7a59d;
+      --border: #3a3936;
+      --accent: #7aa7ec;
+      --code-bg: #2a2a27;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 48px 16px 64px; }
+  a { color: var(--accent); }
+  h1 { font-size: 2.4rem; line-height: 1.1; margin: 0 0 12px; }
+  h2 { font-size: 1.2rem; margin: 0 0 8px; }
+  .lede { margin: 0 0 24px; color: var(--muted); font-size: 1.1rem; max-width: 65ch; }
+  pre {
+    margin: 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    overflow-x: auto;
+    font: 0.875rem/1.5 var(--mono);
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 32px 0;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .card:hover, .card:focus-visible { border-color: var(--accent); }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card p { margin: 0 0 16px; color: var(--muted); flex: 1; }
+  .card .go { color: var(--accent); font-weight: 600; }
+  section { margin: 0 0 32px; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; padding: 0; list-style: none; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 0.875rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <h1>mmcif-tools</h1>
+    <p class="lede">Small, single-purpose command-line tools that select, delete, edit, convert and inspect
+      mmCIF files, and chain together with Unix pipes. They need only the Python standard library
+      (Python 3.9 or newer).</p>
+  </header>
+
+  <pre><code>mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta &gt; clean.cif</code></pre>
+
+  <div class="cards">
+    <a class="card" href="app/">
+      <h2>Run in your browser</h2>
+      <p>Open mmCIF files and chain the tools into a pipeline, with nothing to install. The files are read on
+        your computer and never uploaded.</p>
+      <span class="go">Open the app →</span>
+    </a>
+    <a class="card" href="docs/">
+      <h2>Documentation</h2>
+      <p>Installation, the help text of every tool, examples and tips, mmCIF for pdb-tools users, and the
+        changelog.</p>
+      <span class="go">Read the documentation →</span>
+    </a>
+    <a class="card" href="https://github.com/matteo-cagiada/mmcif-tools">
+      <h2>Source on GitHub</h2>
+      <p>The code, the releases and the issues: report a problem or ask for a tool there.</p>
+      <span class="go">Open the repository →</span>
+    </a>
+  </div>
+
+  <section aria-labelledby="install-title">
+    <h2 id="install-title">Install</h2>
+    <pre><code>python -m pip install mmcif-tools</code></pre>
+  </section>
+
+  <ul class="links">
+    <li><a href="https://pypi.org/project/mmcif-tools/">PyPI</a></li>
+    <li><a href="docs/changelog/">Changelog</a></li>
+    <li><a href="docs/about/">Citation and license</a></li>
+  </ul>
+
+  <footer>
+    mmcif-tools is inspired by <a href="https://www.bonvinlab.org/pdb-tools/">pdb-tools</a>
+    (Rodrigues JPGLM, Teixeira JMC, Trellet M and Bonvin AMJJ, <i>F1000Research</i> 2018, 7:1961).
+    Apache-2.0.
+  </footer>
+</main>
+</body>
+</html>

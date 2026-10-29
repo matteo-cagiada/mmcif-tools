@@ -35,6 +35,6 @@ python tools/smoke_test.py
   ```
 
 - **`tools/make_docs.py`** writes the [tool reference](tools.md) and
-  the other pages of the [documentation website](index.md).
+  the other pages of the [documentation](index.md).
 - **`tools/smoke_test.py`** checks an installation (see
   [Installation](installation.md)).
