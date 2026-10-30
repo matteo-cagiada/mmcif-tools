@@ -17,6 +17,7 @@ const state = {
   files: [], // {name, file}
   input: 0, // index of the input file, for tools that read one file
   steps: [], // {tool, option, label, help}
+  finish: { on: true, option: '', help: false }, // mmcif_delmeta after the steps
   sent: [], // the steps of the current run
   startedAt: 0,
   timer: null,
@@ -82,11 +83,12 @@ function onMessage(msg) {
       state.tools = msg.tools;
       state.byName = new Map(msg.tools.map((t) => [t.name, t]));
       try {
-        state.steps = parsePipeline(decodeURIComponent(location.hash.slice(1)));
+        loadPipeline(decodeURIComponent(location.hash.slice(1)));
       } catch (err) {
         state.steps = []; // a malformed #pipeline
       }
-      if (!state.steps.length) state.steps = parsePipeline(DEFAULT_PIPELINE);
+      if (!state.steps.length) loadPipeline(DEFAULT_PIPELINE);
+      setupFinish();
       renderSteps();
     }
     const v = msg.versions;
@@ -188,7 +190,7 @@ function firstTool() {
 
 // The pipeline as command-line text without the files: "selchain -A | tidy".
 function pipelineText() {
-  return state.steps.map((s) => {
+  return allSteps().map((s) => {
     const words = [s.tool];
     if (s.option) words.push('-' + s.option);
     if (s.label) words.push('--label');
@@ -211,6 +213,55 @@ function parsePipeline(text) {
     steps.push(step);
   }
   return steps;
+}
+
+// The steps of a #pipeline. A last mmcif_delmeta is the finishing step; a
+// pipeline that ends in mmCIF without it was made with that step unticked.
+function loadPipeline(text) {
+  state.steps = parsePipeline(text);
+  const last = state.steps[state.steps.length - 1];
+  if (state.steps.length > 1 && last.tool === 'delmeta') {
+    state.steps.pop();
+    state.finish.option = last.option;
+  } else if (state.steps.length && !finishProblem()) {
+    state.finish.on = false;
+  }
+}
+
+// Why mmcif_delmeta cannot finish the pipeline (null if it can).
+function finishProblem() {
+  if (!state.byName.has('delmeta')) return 'Not available in this version of mmcif-tools.';
+  const last = state.steps[state.steps.length - 1];
+  if (!last) return 'Not used: there are no steps.';
+  const tool = state.byName.get(last.tool);
+  if (last.tool === 'delmeta') return 'Not used: the last step is already mmcif_delmeta.';
+  if (tool.split) return `Not used: mmcif_${tool.name} writes several files.`;
+  if (tool.last_only) return `Not used: mmcif_${tool.name} does not write mmCIF.`;
+  return null;
+}
+
+// The steps that run: those of the list, then mmcif_delmeta if it is ticked and fits.
+function allSteps() {
+  if (!state.finish.on || finishProblem()) return state.steps;
+  return [...state.steps, { tool: 'delmeta', option: state.finish.option, label: false }];
+}
+
+function setupFinish() {
+  const tool = state.byName.get('delmeta');
+  $('finish').hidden = !tool;
+  if (!tool) return;
+  $('finish-on').checked = state.finish.on;
+  $('finish-option').value = state.finish.option;
+  $('finish-option').placeholder = tool.placeholder + ' (optional)';
+  $('finish-help').textContent = tool.help;
+  $('finish-on').addEventListener('change', () => { state.finish.on = $('finish-on').checked; update(); });
+  $('finish-option').addEventListener('input', () => { state.finish.option = $('finish-option').value.trim(); update(); });
+  $('finish-option').addEventListener('keydown', (event) => { if (event.key === 'Enter') run(); });
+  $('finish-help-button').addEventListener('click', () => {
+    state.finish.help = !state.finish.help;
+    $('finish-help').hidden = !state.finish.help;
+    $('finish-help-button').setAttribute('aria-expanded', String(state.finish.help));
+  });
 }
 
 // Why step i cannot run (null if it can); `bad` problems block the run.
@@ -305,17 +356,20 @@ function commandLine() {
   let inputs;
   if (first.multi_input) inputs = state.files.map((f) => shellQuote(f.name));
   else inputs = state.files.length ? [shellQuote(state.files[state.input].name)] : ['<file>'];
-  const parts = state.steps.map((s, i) => {
+  const steps = allSteps();
+  const parts = steps.map((s, i) => {
     const words = ['mmcif_' + s.tool];
     if (s.option) words.push(shellQuote('-' + s.option));
     if (s.label) words.push('--label');
     if (i === 0) words.push(...inputs);
     return words.join(' ');
   });
-  const last = state.byName.get(state.steps[state.steps.length - 1].tool);
+  const last = state.byName.get(steps[steps.length - 1].tool);
+  // the output is named after the last tool, or the one before a last mmcif_delmeta (as in runner.py)
+  const named = steps[steps.length - (steps.length > 1 && last.name === 'delmeta' ? 2 : 1)].tool;
   const base = state.files.length ? stem(state.files[first.multi_input ? 0 : state.input].name) : 'out';
   let line = parts.join(' | ');
-  if (!last.split) line += ' > ' + shellQuote(`${base}_${last.name}${last.ext}`);
+  if (!last.split) line += ' > ' + shellQuote(`${base}_${named}${last.ext}`);
   return line;
 }
 
@@ -330,6 +384,13 @@ function update() {
     hint.classList.toggle('bad', Boolean(problem && problem.bad));
     if (problem && problem.bad) blocked = true;
   });
+  const problem = finishProblem();
+  const finishing = state.finish.on && !problem;
+  $('finish').classList.toggle('unused', !finishing);
+  $('finish-num').textContent = finishing ? String(state.steps.length + 1) : '–';
+  $('finish-hint').hidden = !state.finish.on || !problem;
+  $('finish-hint').textContent = problem || '';
+  $('finish-option').disabled = !state.finish.on;
   $('run').disabled = blocked;
   $('run').hidden = state.running;
   $('stop').hidden = !state.running;
@@ -346,7 +407,7 @@ function run() {
   if ($('run').disabled) return;
   const first = firstTool();
   const inputs = first.multi_input ? state.files.map((f) => f.name) : [state.files[state.input].name];
-  state.sent = state.steps.map((s) => ({ tool: s.tool, option: s.option, label: s.label }));
+  state.sent = allSteps().map((s) => ({ tool: s.tool, option: s.option, label: s.label }));
   state.running = true;
   state.startedAt = performance.now();
   state.progress = 'Running';
@@ -387,6 +448,7 @@ function clearResult() {
   $('result-rows').replaceChildren();
   $('messages').replaceChildren();
   $('output-head').hidden = true;
+  $('output-note').hidden = true;
   $('output').hidden = true;
   if (state.downloadUrl) URL.revokeObjectURL(state.downloadUrl);
   state.downloadUrl = null;
@@ -455,6 +517,7 @@ function showOutput(result, output) {
     const end = shown.lastIndexOf(10);
     if (end > 0) shown = shown.subarray(0, end + 1);
   }
+  $('output-note').hidden = !/\.cif$/.test(result.name);
   const text = new TextDecoder().decode(shown);
   const lines = text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
   $('output-info').textContent = shown.length < output.length

@@ -50,7 +50,8 @@ Pyodide is pinned as `PYODIDE_VERSION` in `app/worker.js`.
 
 - `index.html`: the main page of the website.
 - `app/index.html`: the in-browser page (layout and styles).
-- `app/app.js`: the opened files, the pipeline editor, the result and the download. The pipeline is
+- `app/app.js`: the opened files, the pipeline editor (which ends with `mmcif_delmeta` unless it is
+  unticked), the result and the download. The pipeline is
   kept in the URL (`#selchain -A | delhetatm | tidy`), so a link can open a ready pipeline.
 - `app/worker.js`: loads Pyodide in a module Web Worker, installs mmcif-tools with micropip, and runs
   the pipelines. Running in a worker keeps the page responsive, and Stop simply ends the worker

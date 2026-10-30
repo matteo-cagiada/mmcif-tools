@@ -15,6 +15,11 @@ No changes to the tools.
   tools on your files with Pyodide (Python in WebAssembly), with nothing to install, and the files never leave
   your computer. It installs the latest release from PyPI. Its code is in `web/`.
 - The README links to the website under its title.
+- **Things to know about mmCIF**, rewritten with examples on 4HHB: mmCIF and PDB files side by side, the two sets
+  of identifiers (`auth_*` and `label_*`), what renumbering changes, how to read an output, and why the metadata
+  goes stale. On the website it comes right after Installation.
+- **In the browser:** pipelines end with `mmcif_delmeta` unless you untick it, and the page links to the
+  documentation where it helps (PDB and mmCIF files, the two sets of identifiers, reading the output).
 
 ## 0.1.1 (2026-10-29): on PyPI
 

@@ -303,7 +303,9 @@ def run_pipeline(spec, progress=None):
             output = out_path
         elif result['status'] != 0:
             break
-    name = '{}_{}{}'.format(base, steps[-1]['tool'], os.path.splitext(output)[1]) if output else None
+    # named after the last tool, or the one before a finishing mmcif_delmeta
+    named = steps[-2] if len(steps) > 1 and steps[-1]['tool'] == 'delmeta' else steps[-1]
+    name = '{}_{}{}'.format(base, named['tool'], os.path.splitext(output)[1]) if output else None
     return json.dumps({'steps': results, 'output': output, 'name': name, 'files': files,
                        'seconds': sum(r['seconds'] for r in results)})
 

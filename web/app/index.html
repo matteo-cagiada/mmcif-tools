@@ -122,6 +122,12 @@
   .hint { margin: 4px 0 0 32px; font-size: 0.85rem; color: var(--warn); }
   .hint.bad { color: var(--error); }
   .help { margin: 8px 0 0 32px; padding: 12px; background: var(--code-bg); border-radius: 6px; overflow-x: auto; white-space: pre; }
+  .finish { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 10px; }
+  .finish-on { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 220px; font-size: 0.9rem; }
+  .finish-on code { font-family: var(--mono); }
+  .finish.unused .finish-on code { color: var(--muted); }
+  .doc-link { margin: -4px 0 12px; font-size: 0.875rem; color: var(--muted); }
+  .output-note { margin: 8px 0 0; font-size: 0.875rem; color: var(--muted); }
   .pipeline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
   .pipeline-actions .spacer { flex: 1; }
   .command { margin-top: 12px; font-size: 0.85rem; color: var(--muted); }
@@ -165,6 +171,7 @@
 
   <section aria-labelledby="files-title">
     <h2 id="files-title">1. Open files</h2>
+    <p class="doc-link"><a href="../docs/mmcif/#mmcif-and-pdb-files">How do mmCIF files differ from PDB files?</a></p>
     <label class="drop" id="drop">
       <input type="file" id="file-input" multiple accept=".cif,.mmcif,.gz,.pdb,.ent">
       <strong>Choose mmCIF files</strong> (.cif or .cif.gz) or drop them here
@@ -175,7 +182,24 @@
 
   <section aria-labelledby="pipeline-title">
     <h2 id="pipeline-title">2. Choose the tools</h2>
+    <p class="doc-link">The tools edit the author identifiers (<code>auth_*</code>) unless you tick
+      <code>--label</code>: <a href="../docs/mmcif/#two-sets-of-identifiers-auth-and-label">why two sets of
+      identifiers?</a></p>
     <ol class="steps" id="steps"></ol>
+    <div class="step finish" id="finish" hidden>
+      <div class="step-row">
+        <span class="step-num" id="finish-num"></span>
+        <label class="finish-on"><input type="checkbox" id="finish-on" checked> Finish with <code>mmcif_delmeta</code></label>
+        <span class="option"><span class="dash">-</span><input type="text" id="finish-option" spellcheck="false"
+          autocomplete="off" placeholder="all (optional)" aria-label="Option of mmcif_delmeta"></span>
+        <button type="button" class="icon" id="finish-help-button" title="Help" aria-expanded="false">?</button>
+      </div>
+      <p class="summary">Deletes the tables that the edits leave out of date, and updates the ones it keeps. On by
+        default: untick it to keep every table as it is.
+        <a href="../docs/mmcif/#metadata-goes-stale-finish-with-mmcif_delmeta">Why?</a></p>
+      <p class="hint" id="finish-hint" hidden></p>
+      <pre class="help" id="finish-help" hidden></pre>
+    </div>
     <div class="pipeline-actions">
       <button id="add-step" type="button" disabled>Add a step</button>
       <span class="spacer"></span>
@@ -197,6 +221,9 @@
       <span class="info" id="output-info"></span>
       <a class="button primary" id="download" download>Download</a>
     </div>
+    <p class="output-note" id="output-note" hidden>Each atom row has the label identifiers near its start and the
+      author ones near its end; the tools edit the author ones unless <code>--label</code> is ticked.
+      <a href="../docs/mmcif/#reading-your-output">How to read the output</a></p>
     <pre class="output" id="output" hidden></pre>
   </section>
 
