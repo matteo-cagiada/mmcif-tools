@@ -1,6 +1,6 @@
 # The website: main page and mmcif-tools in the browser
 
-The website <https://mmcif-tools.dev/> has three parts, which
+The website <https://matteo-cagiada.github.io/mmcif-tools/> has three parts, which
 [`.github/workflows/docs.yml`](../.github/workflows/docs.yml) builds and publishes together:
 
 - `/`: the main page, `index.html` here;
@@ -17,7 +17,7 @@ Everything runs in the browser. The page loads Python with [Pyodide](https://pyo
 computer and never leave it: there is no server, and the only downloads are Pyodide (from
 cdn.jsdelivr.net) and mmcif-tools (from PyPI).
 
-What each tool does is in the [mmcif-tools documentation](https://mmcif-tools.dev/docs/).
+What each tool does is in the [mmcif-tools documentation](https://matteo-cagiada.github.io/mmcif-tools/docs/).
 For big files, many files or scripts, install mmcif-tools instead: `pip install mmcif-tools`.
 
 ## Run it locally

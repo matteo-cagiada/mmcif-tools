@@ -6,7 +6,7 @@ version: 0.1.1
 date-released: "2026-10-29"
 license: Apache-2.0
 repository-code: "https://github.com/matteo-cagiada/mmcif-tools"
-url: "https://mmcif-tools.dev/"
+url: "https://matteo-cagiada.github.io/mmcif-tools/"
 abstract: >-
   Small, single-purpose command-line tools to select, edit, convert and inspect
   macromolecular structures in the mmCIF (PDBx/mmCIF) format, chained with Unix

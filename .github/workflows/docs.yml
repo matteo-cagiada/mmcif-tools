@@ -1,7 +1,7 @@
 name: docs
 
-# Builds the website, https://mmcif-tools.dev/, and publishes it to GitHub Pages (Settings > Pages: Source:
-# GitHub Actions; Custom domain: mmcif-tools.dev, so GitHub forwards matteo-cagiada.github.io/mmcif-tools/...):
+# Builds the website, https://matteo-cagiada.github.io/mmcif-tools/, and publishes it to GitHub Pages
+# (Settings > Pages > Source: GitHub Actions):
 # - /        the main page (web/index.html);
 # - /docs/   the documentation (zensical.toml);
 # - /app/    mmcif-tools in the browser (web/app/), with the latest release of mmcif-tools on PyPI.
@@ -91,7 +91,7 @@ jobs:
           <head>
           <meta charset="utf-8">
           <title>Moved to docs/$page/</title>
-          <link rel="canonical" href="https://mmcif-tools.dev/docs/$page/">
+          <link rel="canonical" href="https://matteo-cagiada.github.io/mmcif-tools/docs/$page/">
           <meta name="robots" content="noindex">
           <script>location.replace('../docs/$page/' + location.hash);</script>
           <noscript><meta http-equiv="refresh" content="0; url=../docs/$page/"></noscript>

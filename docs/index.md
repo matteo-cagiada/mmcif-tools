@@ -2,9 +2,9 @@
 
 # mmcif-tools
 
-### [mmcif-tools.dev](https://mmcif-tools.dev/)
+### [matteo-cagiada.github.io/mmcif-tools](https://matteo-cagiada.github.io/mmcif-tools/)
 
-Run the tools [in your browser](https://mmcif-tools.dev/app/), with nothing to install, or read
+Run the tools [in your browser](https://matteo-cagiada.github.io/mmcif-tools/app/), with nothing to install, or read
 the [documentation](index.md).
 
 mmcif-tools is an independent project whose style and much of its tool set are inspired by

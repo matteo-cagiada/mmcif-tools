@@ -7,7 +7,7 @@
 site_name = "mmcif-tools"
 site_description = "Small, pipeable command-line tools to select, edit and inspect mmCIF files (standard library only)."
 site_author = "Matteo Cagiada"
-site_url = "https://mmcif-tools.dev/docs/"
+site_url = "https://matteo-cagiada.github.io/mmcif-tools/docs/"
 repo_url = "https://github.com/matteo-cagiada/mmcif-tools"
 repo_name = "matteo-cagiada/mmcif-tools"
 copyright = "Copyright 2026 the mmcif-tools authors. Apache-2.0."
@@ -22,7 +22,7 @@ nav = [
   { "Coming from pdb-tools" = "pdb-tools.md" },
   { "Changelog" = "changelog.md" },
   { "Citation and license" = "about.md" },
-  { "Run in your browser" = "https://mmcif-tools.dev/app/" },
+  { "Run in your browser" = "https://matteo-cagiada.github.io/mmcif-tools/app/" },
 ]
 
 [project.theme]

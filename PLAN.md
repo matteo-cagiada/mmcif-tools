@@ -266,8 +266,10 @@ Decided for phase 4 (2026-10-24):
     on which page), and `--check` covers them too. Then one website for everything (2026-10-29): a main page
     (`web/index.html`), the documentation under `/docs/` and mmcif-tools in the browser under `/app/`
     (`web/app/`: Pyodide, with the latest release from PyPI, which the workflow checks and pins; it also runs
-    after each release), on its own domain, `mmcif-tools.dev` (GitHub forwards the github.io addresses). The
-    old page addresses forward to `/docs/`, since the README of 0.1.1 on PyPI links to them. A separate repository for the in-browser page was tried first and dropped: two repositories
+    after each release). The old page addresses forward to `/docs/`, since the README of 0.1.1 on PyPI links
+    to them. A custom domain, `mmcif-tools.dev`, was tried on 2026-10-29 and dropped the next day: as a new
+    domain it was blocked by the DNS filters of university and public-sector networks (Cisco Umbrella, the
+    NCSC's Protective DNS), so the site stays on github.io. A separate repository for the in-browser page was tried first and dropped: two repositories
     and two sites were harder to follow than one.
 17. **Version 0.1.0**, a test release: the first users test it from the repository; PyPI and conda-forge come
     after that. PyPI from 0.1.1 (2026-10-29, no tool changes): `.github/workflows/release.yml` builds the sdist

@@ -40,7 +40,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, 'docs')
 OUTPUT = os.path.join(DOCS, 'tools.md')
 REPOSITORY = 'https://github.com/matteo-cagiada/mmcif-tools'
-SITE = 'https://mmcif-tools.dev/'  # the website: the main page and app/ (web/), and docs/
+SITE = 'https://matteo-cagiada.github.io/mmcif-tools/'  # the website: the main page and app/ (web/), and docs/
 DOCUMENTATION = SITE + 'docs/'  # the pages written here (zensical.toml)
 sys.path.insert(0, ROOT)
 

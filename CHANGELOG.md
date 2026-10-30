@@ -7,9 +7,9 @@ command names and options may still change.
 
 No changes to the tools.
 
-- **One website, on its own domain:** <https://mmcif-tools.dev/>, with a main page, the documentation under
-  [docs/](https://mmcif-tools.dev/docs/) (the old addresses, on matteo-cagiada.github.io, forward there), and
-  **mmcif-tools in the browser** under [app/](https://mmcif-tools.dev/app/): it runs the
+- **One website**, <https://matteo-cagiada.github.io/mmcif-tools/>: a main page, the documentation under
+  [docs/](https://matteo-cagiada.github.io/mmcif-tools/docs/) (the pages' old addresses forward there), and
+  **mmcif-tools in the browser** under [app/](https://matteo-cagiada.github.io/mmcif-tools/app/): it runs the
   tools on your files with Pyodide (Python in WebAssembly), with nothing to install, and the files never leave
   your computer. It installs the latest release from PyPI. Its code is in `web/`.
 - The README links to the website under its title.
