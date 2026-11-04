@@ -3,7 +3,7 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
-## Unreleased
+## 0.1.2 (2026-11-05): website, and archived on Zenodo
 
 No changes to the tools.
 

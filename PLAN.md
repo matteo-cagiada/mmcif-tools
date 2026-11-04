@@ -277,6 +277,9 @@ Decided for phase 4 (2026-10-24):
     with Trusted Publishing, so no API token exists anywhere: a manual run goes to TestPyPI, a published
     GitHub release (tag `v<version>`, checked against `__version__`) to PyPI. The README's links are full URLs
     so that they work on PyPI too; `tools/make_docs.py` turns the ones to the website back into page links.
+    0.1.2 (2026-11-05, no tool changes) is the website release and the first one archived on Zenodo (GitHub
+    integration, which archives only releases published after it was turned on; its metadata come from
+    CITATION.cff), which gives the software its DOI.
 18. **Python 3.9 stays while it costs nothing** (the code is stdlib only and macOS's own python3 is 3.9); CI
     also covers the newest versions, up to 3.15.
 19. **Four more mmCIF tools:** `mmcif_selentity` / `mmcif_delentity`, `mmcif_assembly`, `mmcif_info`.
