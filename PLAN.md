@@ -266,7 +266,8 @@ Decided for phase 4 (2026-10-24):
     on which page), and `--check` covers them too. Then one website for everything (2026-10-29): a main page
     (`web/index.html`), the documentation under `/docs/` and mmcif-tools in the browser under `/app/`
     (`web/app/`: Pyodide, with the latest release from PyPI, which the workflow checks and pins; it also runs
-    after each release). The old page addresses forward to `/docs/`, since the README of 0.1.1 on PyPI links
+    after each release, and then waits, up to 10 minutes, until PyPI serves that release: the run after 0.1.2
+    started 3 s after the upload and failed). The old page addresses forward to `/docs/`, since the README of 0.1.1 on PyPI links
     to them. A custom domain, `mmcif-tools.dev`, was tried on 2026-10-29 and dropped the next day: as a new
     domain it was blocked by the DNS filters of university and public-sector networks (Cisco Umbrella, the
     NCSC's Protective DNS), so the site stays on github.io. A separate repository for the in-browser page was tried first and dropped: two repositories

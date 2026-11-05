@@ -44,10 +44,25 @@ jobs:
         run: zensical build --clean --strict
       - name: The in-browser page runs a pipeline with the latest release on PyPI
         working-directory: web/app
+        env:
+          # After a release, its tag (v0.1.2): PyPI can take a few minutes to serve a new upload, and until then
+          # it still answers with the previous release.
+          RELEASED: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
         run: |
-          version=$(curl -fsS https://pypi.org/pypi/mmcif-tools/json | python -c "import json, sys; print(json.load(sys.stdin)['info']['version'])")
+          want=${RELEASED#v}
+          for attempt in $(seq 20); do
+            version=$(curl -fsS -H 'Cache-Control: no-cache' https://pypi.org/pypi/mmcif-tools/json | python -c "import json, sys; print(json.load(sys.stdin)['info']['version'])") || version=
+            if [ -n "$version" ] && { [ -z "$want" ] || [ "$version" = "$want" ]; }; then
+              python -m pip install "mmcif-tools==$version" && break
+            fi
+            if [ "$attempt" = 20 ]; then
+              echo "::error::Could not install mmcif-tools ${want:-$version} from PyPI"
+              exit 1
+            fi
+            echo "PyPI does not serve mmcif-tools ${want:-$version} yet (attempt $attempt of 20); trying again in 30 s"
+            sleep 30
+          done
           echo "VERSION=$version" >> "$GITHUB_ENV"
-          python -m pip install "mmcif-tools==$version"
           python -c "import json, runner; other = [t['name'] for t in json.loads(runner.tools()) if t['group'] == 'Other']; other and print('::warning::Tools missing from GROUPS in web/app/runner.py:', *other)"
           cat > "$RUNNER_TEMP/tiny.cif" <<'EOF'
           data_tiny
