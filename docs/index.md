@@ -2,6 +2,8 @@
 
 # mmcif-tools
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23966235.svg)](https://doi.org/10.5281/zenodo.23966235)
+
 ### [matteo-cagiada.github.io/mmcif-tools](https://matteo-cagiada.github.io/mmcif-tools/)
 
 Run the tools [in your browser](https://matteo-cagiada.github.io/mmcif-tools/app/), with nothing to install, or read

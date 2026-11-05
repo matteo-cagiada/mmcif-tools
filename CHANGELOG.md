@@ -3,6 +3,14 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
+## Unreleased
+
+No changes to the tools.
+
+- **DOI:** mmcif-tools is archived on Zenodo, [10.5281/zenodo.23966235](https://doi.org/10.5281/zenodo.23966235)
+  (all versions; 0.1.2 is [10.5281/zenodo.23966236](https://doi.org/10.5281/zenodo.23966236)). The README has a
+  DOI badge and explains how to cite the software, with a BibTeX entry, and CITATION.cff gives the DOI.
+
 ## 0.1.2 (2026-11-05): website, and archived on Zenodo
 
 No changes to the tools.

@@ -4,8 +4,32 @@
 
 ## Citation and changes
 
-How to cite mmcif-tools is in [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff);
-the changes between versions are in the [changelog](changelog.md).
+If you use mmcif-tools in your research, please cite the software with its Zenodo DOI,
+[10.5281/zenodo.23966235](https://doi.org/10.5281/zenodo.23966235). That DOI covers all versions and leads to the
+latest one; each version also has a DOI of its own, listed on the Zenodo record. Please cite the version you used
+whenever possible: it helps support the development of the software. You can get a formatted citation from the
+"Cite this repository" button on [GitHub](https://github.com/matteo-cagiada/mmcif-tools) (made from
+[CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff)) or from the
+[Zenodo record](https://doi.org/10.5281/zenodo.23966235).
+
+In BibTeX, for version 0.1.2:
+
+```bibtex
+@software{cagiada2026mmciftools,
+  author    = {Cagiada, Matteo},
+  title     = {{mmcif-tools: command-line tools for mmCIF files}},
+  version   = {0.1.2},
+  publisher = {Zenodo},
+  year      = {2026},
+  doi       = {10.5281/zenodo.23966236},
+  url       = {https://doi.org/10.5281/zenodo.23966236}
+}
+```
+
+For another version, use its number and the DOI on its Zenodo page (`python -m pip show mmcif-tools` prints the
+version you have installed).
+
+The changes between versions are in the [changelog](changelog.md).
 [PLAN.md](https://github.com/matteo-cagiada/mmcif-tools/blob/main/PLAN.md) records the design decisions and the test
 results.
 
