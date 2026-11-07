@@ -22,8 +22,8 @@ Atoms are counted over the whole file, across models and data blocks.
 Unlike pdb_head, which outputs nothing but the first N ATOM/HETATM lines,
 the rest of the file (metadata categories) is kept, so the output is still
 a complete mmCIF file;
-rows of _atom_site_anisotrop and _struct_conn that refer to removed atoms
-are removed.
+rows of the other tables that name removed atoms, residues or chains are
+removed (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...).
 
 Usage:
     mmcif_head -<num> <cif file>

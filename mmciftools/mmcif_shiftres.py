@@ -18,11 +18,11 @@
 """
 Shifts the residue numbers of an mmCIF file by a constant value.
 
-Changes auth_seq_id by default, in _atom_site and in the matching columns of
-_atom_site_anisotrop and _struct_conn; insertion codes are kept. With
---label it shifts label_seq_id of polymer residues instead; that number
-links atoms to the sequence in _entity_poly_seq, so a warning is printed.
-There is no upper or lower limit.
+Changes auth_seq_id by default, in _atom_site and in the other tables that
+name residues (_struct_conn, _pdbx_poly_seq_scheme, _struct_conf, ...);
+insertion codes are kept. With --label it shifts label_seq_id of polymer
+residues instead; that number links atoms to the sequence in
+_entity_poly_seq, so a warning is printed. There is no upper or lower limit.
 
 Usage:
     mmcif_shiftres -<number> [--label] <cif file>

@@ -30,10 +30,9 @@ label_seq_id):
     and insertion codes) do not. mmcif_label2auth -res goes the other way.
 
 Nothing is written if an author chain holds more than one polymer, or if a
-new label chain is already the label chain of another molecule. Rows of
-_atom_site_anisotrop and _struct_conn follow; other categories that mention
-label chains (_struct_asym, _pdbx_poly_seq_scheme, ...) are not updated, as
-with mmcif_rplchain --label.
+new label chain is already the label chain of another molecule. The other
+tables that name label chains (_struct_asym, _pdbx_poly_seq_scheme,
+_struct_conn, ...) follow, as with mmcif_rplchain --label.
 
 Usage:
     mmcif_auth2label <cif file>

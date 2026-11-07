@@ -34,7 +34,11 @@ mandatory items). Errors:
     - rows of _atom_site_anisotrop or _struct_conn that match no atom
 
 Warnings: only one identifier scheme (auth_* or label_*) present,
-occupancies outside 0-1.
+occupancies outside 0-1, and metadata out of step with the atoms: rows of
+the tables that name residues or atoms (_struct_conf,
+_pdbx_poly_seq_scheme, _pdbx_validate_*, ...) whose author ids differ from
+those of the atoms with the same label ids, or that name atoms or residues
+the file does not have (tables of missing residues aside).
 
 Prints one line per problem (the first 20 of each kind) and a summary.
 The exit status is 1 if there are errors, 0 otherwise.
@@ -50,7 +54,7 @@ This program is part of the mmcif-tools suite.
 
 import sys
 
-from mmciftools import _atoms, _cif, _cli
+from mmciftools import _atoms, _cif, _cli, _refs
 
 SHOWN = 20  # messages printed per kind of problem
 NULLS = ('.', '?')
@@ -173,6 +177,9 @@ def validate(fhandle):
     else:
         for message in _atoms.reference_problems(source):
             report.add('ERROR', 'reference', message)
+        for category, kind, message in _refs.problems(source):
+            if category not in (_atoms.ANISOTROP, _atoms.STRUCT_CONN):  # errors above
+                report.add('WARNING', 'metadata', message)
     return report
 
 

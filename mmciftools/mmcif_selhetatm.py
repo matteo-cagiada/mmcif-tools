@@ -20,8 +20,9 @@ Selects all HETATM records (ligands, ions, waters, ...) in an mmCIF file.
 
 Atoms are selected on _atom_site.group_PDB. Unlike pdb_selhetatm, which
 drops every other record, the rest of the file (metadata categories) is
-kept; rows of _atom_site_anisotrop and _struct_conn that refer to removed
-atoms are removed.
+kept; rows of the other tables that name removed atoms, residues or chains
+are removed (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme,
+...).
 
 Usage:
     mmcif_selhetatm <cif file>

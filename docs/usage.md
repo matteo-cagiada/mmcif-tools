@@ -30,16 +30,17 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
 
 ## `mmcif_delmeta`
 
-A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. Most of the rest
-refers to residues by chain and number: validation reports, secondary structure, sequence schemes, binding sites,
-assemblies, and more. The edit tools keep the atoms and their links consistent, but not these tables, so after
-renumbering or deleting residues they describe a structure that is no longer there. Simulation and prediction
-programs rarely read them anyway.
+A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. The rest describes
+the experiment, the validation, the secondary structure, the binding sites, the assemblies, and more. The tools keep
+the tables that name chains, residues or atoms in step with their edits (see
+[Metadata follows the edits](mmcif.md#metadata-follows-the-edits)), but simulation and prediction programs read few of
+them, and some stop at categories they do not expect.
 
 `mmcif_delmeta` deletes that metadata and keeps what is fundamental: the atoms, their links and anisotropic B-factors;
 the entry id, method, resolution and release dates; the unit cell and space group; the entities, chains and
 sequences; the ligands and modified residues; and the chemical components with their atoms and bonds. It also
-brings these tables in step with the atoms: chains, entities and modified residues with no atoms left are removed,
+brings these tables in step with the atoms, for files edited by other programs: chains, entities and modified
+residues with no atoms left are removed,
 the number of molecules and the chains of each entity are recomputed, modified residues get their current author
 numbers, and the table that places each chain's residues on its sequence (`_pdbx_poly_seq_scheme`) is rebuilt.
 For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF.
@@ -48,7 +49,8 @@ For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF.
 mmcif_fetch 4hhb | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 | mmcif_delmeta > 4hhb_clean.cif
 ```
 
-We suggest running `mmcif_delmeta` as the last step, after you have completed the structure manipulations.
+We suggest running `mmcif_delmeta` as the last step, after you have completed the structure manipulations, when
+the file goes to a prediction or simulation program.
 
 The kept categories are also those that structure prediction programs read from template or input files (AlphaFold 2
 and 3, ColabFold, OpenFold3, Boltz, Chai-1, Protenix, BioEmu), and MD preparation programs from structures (OpenMM,

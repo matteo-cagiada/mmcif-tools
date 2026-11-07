@@ -28,11 +28,11 @@ numbering of the rest of the chain up by one: 51, 52A, 52B, 53 becomes
 The shift restarts at each new chain instance (a change of chain or of
 label_asym_id, e.g. between a protein and its ligands or waters: where
 pdb_fixinsert meets a TER record) and in each model (pdb_fixinsert never
-restarts between models). Chains may have several
-characters and numbers may be negative: -A9,B12,AB-3. Insertion codes only
-exist with author identifiers, so --label is not accepted. The matching
-columns of _atom_site_anisotrop and _struct_conn are updated too. A file
-without a pdbx_PDB_ins_code column (e.g. an integrative model) has no
+restarts between models). Chains may have several characters and numbers may
+be negative: -A9,B12,AB-3. Insertion codes only exist with author
+identifiers, so --label is not accepted. The other tables that name residues
+(_struct_conn, _pdbx_poly_seq_scheme, _struct_conf, ...) are updated too. A
+file without a pdbx_PDB_ins_code column (e.g. an integrative model) has no
 insertion codes and is written unchanged.
 
 Usage:
@@ -49,7 +49,7 @@ This program is part of the mmcif-tools suite.
 import re
 import sys
 
-from mmciftools import _atoms, _cif, _cli
+from mmciftools import _atoms, _cif, _cli, _refs
 
 NULLS = ('.', '?')
 RESIDUE = re.compile(r'(\S+?)(-?[0-9]+)\Z')
@@ -127,6 +127,16 @@ def _has_codes(source):
     return True  # no atoms: let the usual checks report it
 
 
+def _set(row, ref, new):
+    """Give a reference (chain, number, icode and name positions) its new (number, code)."""
+    _, r_pos, i_pos, _ = ref
+    for pos in r_pos:
+        if row.values[pos] not in _atoms.NULLS and new[0] != row.values[pos]:
+            row[row.loop.columns[pos]] = new[0]
+    if i_pos is not None and new[1] is not None and new[1] != row.values[i_pos]:
+        row[row.loop.columns[i_pos]] = new[1]
+
+
 def run(fhandle, residues=frozenset(), scheme=None):
     """Yield the events of the file with insertion codes removed."""
     source = _atoms.as_source(fhandle)
@@ -161,7 +171,7 @@ def run(fhandle, residues=frozenset(), scheme=None):
     has_aniso = any(type(ev) is _cif.Loop for ev in _cif.parse(source.lines(), _atoms.ANISOTROP))
     by_id = {}
     kind = None
-    for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)):
+    for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE,) + _refs.CATEGORIES):
         etype = type(ev)
         if etype is _cif.Row:
             if kind == _atoms.ATOM_SITE:
@@ -174,27 +184,22 @@ def run(fhandle, residues=frozenset(), scheme=None):
                     if has_aniso and id_pos is not None:
                         by_id[ev.values[id_pos]] = new
             elif kind == _atoms.ANISOTROP and by_id and aniso_id is not None and ev.values[aniso_id] in by_id:
-                new = by_id[ev.values[aniso_id]]
-                c_pos, r_pos, i_pos, n_pos = refs[0]
-                if r_pos is not None and new[0] != ev.values[r_pos]:
-                    ev[ev.loop.columns[r_pos]] = new[0]
-                if i_pos is not None and new[1] is not None and new[1] != ev.values[i_pos]:
-                    ev[ev.loop.columns[i_pos]] = new[1]
+                if refs:
+                    _set(ev, refs[0], by_id[ev.values[aniso_id]])
             elif kind is not None:
-                for c_pos, r_pos, i_pos, n_pos in refs:
-                    if r_pos is None:
+                for ref in refs:
+                    c_pos, r_pos, i_pos, n_pos = ref
+                    if not r_pos:
                         continue
                     values = ev.values
-                    key = _key(*(values[p] if p is not None else None
-                                 for p in (c_pos, r_pos, i_pos, n_pos)))
+                    key = _key(values[c_pos[0]] if c_pos else None, values[r_pos[0]],
+                               values[i_pos] if i_pos is not None else None,
+                               values[n_pos] if n_pos is not None else None)
                     new = changes.get(key)
                     if new is None and n_pos is not None:  # partner without a residue name match
                         new = changes.get(key[:3] + (None,))
                     if new is not None:
-                        if new[0] != values[r_pos]:
-                            ev[ev.loop.columns[r_pos]] = new[0]
-                        if new[1] is not None and i_pos is not None:
-                            ev[ev.loop.columns[i_pos]] = new[1]
+                        _set(ev, ref, new)
         elif etype is _cif.Loop:
             kind = ev.category.lower()
             if kind == _atoms.ATOM_SITE:
@@ -203,7 +208,7 @@ def run(fhandle, residues=frozenset(), scheme=None):
                 resnum_pos, id_pos = fields.resnum, fields.id
                 resnum_col, icode_col = ev.columns[fields.resnum], ev.columns[fields.icode]
             else:
-                refs = _atoms._reference_columns(ev, 'auth')
+                refs = _refs.scheme_columns(ev, 'auth')[0]
                 aniso_id = ev.index('id') if kind == _atoms.ANISOTROP and 'id' in ev else None
         elif etype is _cif.LoopEnd:
             kind = None

@@ -18,20 +18,16 @@
 Helpers for tools that select or edit atoms (rows of _atom_site).
 
 Removing or renaming atoms also affects the rows of other categories that
-point at them. The helpers here keep two of those in step:
+point at them: _atom_site_anisotrop, _struct_conn, and the other tables that
+name chains, residues or atoms (_struct_conf, _pdbx_poly_seq_scheme, ...,
+listed in _refs.py). The helpers here keep them in step: rows naming
+removed atoms or residues are removed, and renamed chains and residues are
+renamed.
 
-    _atom_site_anisotrop   rows of removed atoms are removed; renamed chains
-                           and residues are renamed
-    _struct_conn           links to a removed atom are removed; renamed
-                           chains and residues are renamed
-
-Other categories that mention chains or residues (_struct_conf,
-_pdbx_poly_seq_scheme, ...) are left as they are.
-
-_struct_conn normally comes before _atom_site, so deciding which links to
-drop needs a first look at the atoms. Tools therefore read their input
-through a Source, which can be read more than once (stdin is copied to a
-temporary file, kept in memory while small).
+Those tables normally come before _atom_site, so deciding which rows to drop
+needs a first look at the atoms. Tools therefore read their input through a
+Source, which can be read more than once (stdin is copied to a temporary
+file, kept in memory while small).
 """
 
 import io
@@ -40,11 +36,12 @@ import os
 import stat
 import tempfile
 
-from mmciftools import _cif
+from mmciftools import _cif, _refs
 
 ATOM_SITE = '_atom_site'
 ANISOTROP = '_atom_site_anisotrop'
 STRUCT_CONN = '_struct_conn'
+NULLS = ('.', '?')
 
 
 class Fields:
@@ -302,44 +299,6 @@ def _partner_getters(conn_loop, columns):
     return first, second
 
 
-def _dangling_links(source, make_keep, scheme):
-    """Identities of link partners that exist in the input but not in the output.
-
-    Returns (dangling identities, columns used), or None when there is
-    nothing to check.
-    """
-    conn_loop, partners = None, []
-    for ev in _cif.parse(source.lines(), STRUCT_CONN):  # _atom_site is not tokenized here
-        if type(ev) is _cif.Row:
-            partners.append(ev)
-        elif type(ev) is _cif.Loop:
-            conn_loop = ev
-    if not partners:
-        return None
-
-    seen, kept = set(), set()
-    columns = None
-    for ev in _cif.parse(source.lines(), ATOM_SITE):
-        if type(ev) is _cif.Loop:
-            columns = _link_columns(ev, conn_loop)
-            if not columns:
-                return None
-            atom_key = getter(*[ev.index(a) for a, _ in columns])
-            first, second = _partner_getters(conn_loop, columns)
-            wanted = {first(r.values) for r in partners} | {second(r.values) for r in partners}
-            keep = make_keep(Fields(ev, scheme))
-        elif type(ev) is _cif.Row:
-            keeping = keep(ev.values)  # on every row: keep() may count residues
-            key = atom_key(ev.values)
-            if key in wanted:
-                seen.add(key)
-                if keeping:
-                    kept.add(key)
-    if columns is None:
-        return None
-    return seen - kept, columns
-
-
 def filter_atoms(fhandle, make_keep, scheme=None):
     """Yield the events of the input, keeping only the atoms that pass.
 
@@ -347,16 +306,17 @@ def filter_atoms(fhandle, make_keep, scheme=None):
     for the first look at the file) with its Fields, and returns a function
     that takes a row's values and says whether to keep the atom; it is
     called on every row in file order, so it may keep state. Rows of
-    _atom_site_anisotrop and _struct_conn that refer to removed atoms are
-    removed as well.
+    _atom_site_anisotrop of removed atoms are removed, and the other tables
+    follow (_refs.Removal): rows naming removed atoms, residues, chains or
+    molecules are removed, and ranges and lists of chains shrink.
     """
     source = as_source(fhandle)
-    links = _dangling_links(source, make_keep, scheme)
-    dangling = links[0] if links else None
+    removal = _refs.Removal(source, lambda loop: make_keep(Fields(loop, scheme))).view(True)
 
     removed = set()  # ids of removed atoms, for _atom_site_anisotrop
     kind = None
-    for ev in _cif.parse(source.lines(), (ATOM_SITE, ANISOTROP, STRUCT_CONN)):
+    categories = (ATOM_SITE, ANISOTROP) + (removal.categories if removal.active else ())
+    for ev in _cif.parse(source.lines(), categories):
         etype = type(ev)
         if etype is _cif.Row:
             if kind == ATOM_SITE:
@@ -368,9 +328,8 @@ def filter_atoms(fhandle, make_keep, scheme=None):
             if kind == ANISOTROP:
                 if aniso_id is not None and ev.values[aniso_id] in removed:
                     continue
-            elif kind == STRUCT_CONN and dangling:
-                if first(ev.values) in dangling or second(ev.values) in dangling:
-                    continue
+            elif not removal.row(ev):
+                continue
             yield ev
             continue
         if etype is _cif.Loop:
@@ -381,8 +340,6 @@ def filter_atoms(fhandle, make_keep, scheme=None):
                 id_pos = fields.id
             elif kind == ANISOTROP:
                 aniso_id = ev.index('id') if 'id' in ev else None
-            elif kind == STRUCT_CONN and dangling:
-                first, second = _partner_getters(ev, links[1])
         elif etype is _cif.LoopEnd:
             kind = None
         yield ev
@@ -503,34 +460,6 @@ def replace_values(fhandle, columns, mapping):
 # Renaming chains and residues
 # ---------------------------------------------------------------------------
 
-def _reference_columns(loop, scheme):
-    """(chain, resnum, icode, resname) column positions in
-    _atom_site_anisotrop or _struct_conn rows, as a list (one entry per
-    partner)."""
-    def pos(name):
-        return loop.index(name) if name in loop else None
-
-    kind = loop.category.lower()
-    auth = scheme == 'auth'
-    if kind == ANISOTROP:
-        if auth:
-            return [(pos('pdbx_auth_asym_id'), pos('pdbx_auth_seq_id'), pos('pdbx_PDB_ins_code'),
-                     pos('pdbx_auth_comp_id'))]
-        return [(pos('pdbx_label_asym_id'), pos('pdbx_label_seq_id'), None,
-                 pos('pdbx_label_comp_id'))]
-    out = []
-    for n in (1, 2):
-        if auth:
-            out.append((pos('ptnr{}_auth_asym_id'.format(n)), pos('ptnr{}_auth_seq_id'.format(n)),
-                        pos('pdbx_ptnr{}_PDB_ins_code'.format(n)),
-                        pos('ptnr{}_auth_comp_id'.format(n))))
-        else:
-            out.append((pos('ptnr{}_label_asym_id'.format(n)),
-                        pos('ptnr{}_label_seq_id'.format(n)), None,
-                        pos('ptnr{}_label_comp_id'.format(n))))
-    return out
-
-
 def _edited_column(loop, position, field, scheme):
     """The name of the column to edit; CIFError if it belongs to the other
     scheme (Fields falls back to it when a file lacks one): editing author ids
@@ -563,7 +492,7 @@ def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, 
     scheme = _cif.get_scheme(scheme)
     kind = None
     by_id = {} if aniso_by_id else None  # atom id -> (chain, residue number) after the edit
-    for ev in _cif.parse(fhandle, (ATOM_SITE, ANISOTROP, STRUCT_CONN)):
+    for ev in _cif.parse(fhandle, (ATOM_SITE,) + _refs.CATEGORIES):
         etype = type(ev)
         if etype is _cif.Row:
             if kind == ATOM_SITE:
@@ -582,24 +511,40 @@ def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, 
                                              values[f_resnum] if new_resnum is not None else None)
             elif kind == ANISOTROP and by_id and aniso_id is not None and ev.values[aniso_id] in by_id:
                 new_chain, new_num = by_id[ev.values[aniso_id]]
-                c_pos, r_pos = refs[0][0], refs[0][1]
-                for pos, new in ((c_pos, new_chain), (r_pos, new_num)):
-                    if pos is not None and new is not None and ev.values[pos] != new:
-                        ev[ev.loop.columns[pos]] = new
+                c_pos, r_pos = (refs[0][0], refs[0][1]) if refs else ((), ())
+                for positions, new in ((c_pos, new_chain), (r_pos, new_num)):
+                    for pos in positions:
+                        if new is not None and ev.values[pos] != new:
+                            ev[ev.loop.columns[pos]] = new
             elif kind is not None:
+                columns = ev.loop.columns
+                values = ev.values  # the values as read: groups may share a column (_struct_ref_seq)
                 for c_pos, r_pos, i_pos, n_pos in refs:
-                    values = ev.values
-                    old_chain = values[c_pos] if c_pos is not None else None
-                    if ref_resnum is not None and r_pos is not None:
+                    old_chain = values[c_pos[0]] if c_pos else None
+                    if ref_resnum is not None and r_pos:
                         icode = values[i_pos] if i_pos is not None else None
                         resname = values[n_pos] if n_pos is not None else None
-                        num = ref_resnum(old_chain, values[r_pos], icode, resname)
-                        if num is not None and num != values[r_pos]:
-                            ev[ev.loop.columns[r_pos]] = num
-                    if chain is not None and c_pos is not None:
-                        new = chain(old_chain)
-                        if new is not None and new != old_chain:
-                            ev[ev.loop.columns[c_pos]] = new
+                        for pos in r_pos:  # each column of the number (pdb_seq_num and auth_seq_num)
+                            old = values[pos]
+                            if old in NULLS:
+                                continue
+                            num = ref_resnum(old_chain, old, icode, resname)
+                            if num is not None and num != old:
+                                ev[columns[pos]] = num
+                    if chain is not None:
+                        for pos in c_pos:
+                            old = values[pos]
+                            if old in NULLS:
+                                continue
+                            new = chain(old)
+                            if new is not None and new != old:
+                                ev[columns[pos]] = new
+                if chain is not None:
+                    for pos in lists:
+                        old = ev.values[pos]
+                        new = _refs.rename_list(old, chain)
+                        if new != old:
+                            ev[columns[pos]] = new
             yield ev
             continue
         if etype is _cif.Loop:
@@ -620,7 +565,7 @@ def rename(fhandle, scheme=None, chain=None, atom_resnum=None, ref_resnum=None, 
                     new_resnum = atom_resnum(fields)
                 id_pos = fields.id
             else:
-                refs = _reference_columns(ev, scheme)
+                refs, lists = _refs.scheme_columns(ev, scheme)
                 aniso_id = ev.index('id') if kind == ANISOTROP and 'id' in ev else None
         elif etype is _cif.LoopEnd:
             kind = None

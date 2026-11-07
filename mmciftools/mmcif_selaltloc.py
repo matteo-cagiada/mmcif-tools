@@ -28,8 +28,10 @@ The choice is made per residue, so a residue modelled as two different
 residue types (e.g. SER/THR) is never mixed. Atoms keep their order, and
 rows of _atom_site_anisotrop of removed atoms are removed too. Links
 (_struct_conn) to a removed conformer are removed, and links to a kept one
-lose their altloc label, as the atom does. A file without a label_alt_id
-column has no alternate locations and is written unchanged.
+lose their altloc label, as the atom does. The other tables follow as with
+mmcif_selatom: rows naming atoms or residues that are gone are removed. A
+file without a label_alt_id column has no alternate locations and is
+written unchanged.
 
 Usage:
     mmcif_selaltloc [-<altloc>] <cif file>
@@ -43,7 +45,7 @@ This program is part of the mmcif-tools suite.
 
 import sys
 
-from mmciftools import _atoms, _cif, _cli
+from mmciftools import _atoms, _cif, _cli, _refs
 
 NULLS = ('.', '?')
 LINK_ALTS = ('pdbx_ptnr1_label_alt_id', 'pdbx_ptnr2_label_alt_id')
@@ -132,18 +134,46 @@ def run(fhandle, altloc=None, scheme=None):
     fates, partners = {}, None
     if links is not None:
         fates, partners = _link_fates(source, links[0], links[1], altloc, scheme)
-    categories = (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)
+    removed = _removed(source, altloc, scheme)
+    view = _refs.Removal(source, _owner(removed)).view(True) if removed else None
+    active = view is not None and view.active
+    categories = (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN) + (view.categories if active else ())
     for ev in _select(_cif.parse(source.lines(), categories), altloc, scheme):
-        if (partners is not None and type(ev) is _cif.Row
-                and ev.loop.category.lower() == _atoms.STRUCT_CONN):
-            alts = [ev[alt] for alt in LINK_ALTS]
-            kept = [fates.get((partner(ev.values), loc)) for partner, loc in zip(partners, alts)]
-            if False in kept:
-                continue  # a link of a removed conformer
-            for alt, fate in zip(LINK_ALTS, kept):
-                if fate:
-                    ev[alt] = '.'
+        if type(ev) is _cif.Row:
+            category = ev.loop.category.lower()
+            if category == _atoms.STRUCT_CONN and partners is not None:
+                alts = [ev[alt] for alt in LINK_ALTS]
+                kept = [fates.get((partner(ev.values), loc)) for partner, loc in zip(partners, alts)]
+                if False in kept:
+                    continue  # a link of a removed conformer
+                for alt, fate in zip(LINK_ALTS, kept):
+                    if fate:
+                        ev[alt] = '.'
+            elif active and category not in (_atoms.ATOM_SITE, _atoms.ANISOTROP) and not view.row(ev):
+                continue
         yield ev
+
+
+def _removed(source, altloc, scheme):
+    """The values of the atoms the selection removes."""
+    removed = set()
+
+    def make_record(loop):
+        def record(values, loc, kept):
+            if kept is False:
+                removed.add(values)
+        return record
+    for _ in _select(_cif.parse(source.lines(), _atoms.ATOM_SITE), altloc, scheme, make_record):
+        pass
+    return removed
+
+
+def _owner(removed):
+    """make_owner for _refs.Removal: True for the atoms kept."""
+    def make_owner(loop):
+        alt = loop.index('label_alt_id') if 'label_alt_id' in loop else None
+        return lambda values: alt is None or values[alt] in NULLS or values not in removed
+    return make_owner
 
 
 def _select(events, altloc=None, scheme=None, make_record=None):

@@ -19,9 +19,9 @@
 Sets the chain identifier of all atoms in an mmCIF file.
 
 Changes auth_asym_id (label_asym_id with --label), in _atom_site and in the
-matching columns of _atom_site_anisotrop and _struct_conn. mmCIF has no
-blank chain, so unlike pdb_chain an identifier must be given; it may be
-longer than one character.
+other tables that name chains (_struct_conn, _pdbx_poly_seq_scheme,
+_struct_conf, ...). mmCIF has no blank chain, so unlike pdb_chain an
+identifier must be given; it may be longer than one character.
 
 Usage:
     mmcif_chain -<chain id> [--label] <cif file>

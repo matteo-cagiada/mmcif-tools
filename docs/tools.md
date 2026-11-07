@@ -128,8 +128,9 @@ Extracts one or more chains from an mmCIF file.
 
 Chains are matched on auth_asym_id (the chain shown by viewers), or on
 label_asym_id with --label. Chain identifiers are case-sensitive and may be
-longer than one character. Rows of _atom_site_anisotrop and _struct_conn
-that refer to removed atoms are removed too.
+longer than one character. Rows of the other tables that name removed atoms,
+residues or chains are removed too (_atom_site_anisotrop, _struct_conn,
+_pdbx_poly_seq_scheme, ...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_selchain -<chain id>[,<chain id>...] [--label] <cif file>
@@ -151,8 +152,9 @@ Deletes all atoms of one or more chains from an mmCIF file.
 Chains are matched on auth_asym_id (the chain shown by viewers), or on
 label_asym_id with --label. Chain identifiers are case-sensitive (unlike
 pdb_delchain, which upper-cases them) and may be longer than one character.
-Rows of _atom_site_anisotrop and _struct_conn that refer to removed atoms
-are removed too.
+Rows of the other tables that name removed atoms, residues or chains are
+removed too (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme,
+...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_delchain -<chain id>[,<chain id>...] [--label] <cif file>
@@ -177,9 +179,10 @@ end at the last, respectively. As in pdb_selres, residues are matched by
 number only (in every chain and model, with or without insertion code), and
 the step counts residue occurrences in file order.
 
-Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of the
+other tables that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selres -[resid]:[resid]:[step] [--label] <cif file>
@@ -211,9 +214,10 @@ are residue numbers (matched in every chain and model), while the step
 counts residue occurrences in file order, regardless of their number.
 Unlike pdb_delres, a range may start and end at the same residue (-5:5).
 
-Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of the
+other tables that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_delres -[resid]:[resid]:[step] [--label] <cif file>
@@ -235,10 +239,11 @@ Selects all residues matching the given name(s) in an mmCIF file.
 ```text
 Selects all residues matching the given name(s) in an mmCIF file.
 
-Residue names are matched on auth_comp_id (label_comp_id with --label);
-the names given are upper-cased, as in pdb_selresname. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue names are matched on auth_comp_id (label_comp_id with --label); the
+names given are upper-cased, as in pdb_selresname. Rows of the other tables
+that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selresname -<name>[,<name>...] <cif file>
@@ -257,10 +262,11 @@ Removes all residues matching the given name(s) in an mmCIF file.
 ```text
 Removes all residues matching the given name(s) in an mmCIF file.
 
-Residue names are matched on auth_comp_id (label_comp_id with --label);
-the names given are upper-cased, as in pdb_delresname. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue names are matched on auth_comp_id (label_comp_id with --label); the
+names given are upper-cased, as in pdb_delresname. Rows of the other tables
+that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_delresname -<name>[,<name>...] <cif file>
@@ -283,8 +289,9 @@ Selects all atoms matching the given name(s) in an mmCIF file.
 Atom names are matched on auth_atom_id (label_atom_id with --label); the
 names given are upper-cased, as in pdb_selatom. mmCIF atom names carry no
 padding, so -CA keeps alpha carbons and calcium ions alike, as pdb_selatom
-does. Rows of _atom_site_anisotrop and _struct_conn that refer to removed
-atoms are removed too.
+does. Rows of the other tables that name removed atoms, residues or chains
+are removed too (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme,
+...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_selatom -<name>[,<name>...] <cif file>
@@ -304,9 +311,10 @@ Selects all atoms of the given element(s) in an mmCIF file.
 Selects all atoms of the given element(s) in an mmCIF file.
 
 Elements are read from _atom_site.type_symbol and compared ignoring case
-(pdb_selelem only matches upper-case elements). Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+(pdb_selelem only matches upper-case elements). Rows of the other tables
+that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selelem -<element>[,<element>...] <cif file>
@@ -327,9 +335,10 @@ Deletes all atoms of the given element(s) from an mmCIF file.
 Deletes all atoms of the given element(s) from an mmCIF file.
 
 Elements are read from _atom_site.type_symbol and compared ignoring case
-(pdb_delelem only matches upper-case elements). Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+(pdb_delelem only matches upper-case elements). Rows of the other tables
+that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_delelem -<element>[,<element>...] <cif file>
@@ -350,8 +359,9 @@ Selects all HETATM records (ligands, ions, waters, ...) in an mmCIF file.
 
 Atoms are selected on _atom_site.group_PDB. Unlike pdb_selhetatm, which
 drops every other record, the rest of the file (metadata categories) is
-kept; rows of _atom_site_anisotrop and _struct_conn that refer to removed
-atoms are removed.
+kept; rows of the other tables that name removed atoms, residues or chains
+are removed (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme,
+...).
 
 Usage:
     mmcif_selhetatm <cif file>
@@ -369,8 +379,10 @@ Removes all HETATM records (ligands, ions, waters, ...) from an mmCIF file.
 ```text
 Removes all HETATM records (ligands, ions, waters, ...) from an mmCIF file.
 
-Atoms are selected on _atom_site.group_PDB. Rows of _atom_site_anisotrop
-and _struct_conn that refer to removed atoms are removed too.
+Atoms are selected on _atom_site.group_PDB. Rows of the other tables that
+name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_delhetatm <cif file>
@@ -399,11 +411,13 @@ of:
 
 Unlike mmcif_selhetatm, this keeps modified residues with their chain: they
 are HETATM records inside a polymer (MSE in proteins, PSU and 2MG in tRNA,
-...). Numbers and types can be mixed (-polymer,5); types are
-case-insensitive. Files without an _entity category (some non-PDB files) are
-classified from their atoms: atoms with a label_seq_id are polymer, HOH,
-WAT and DOD are water, and the rest non-polymer. Rows of
-_atom_site_anisotrop and _struct_conn of removed atoms are removed too.
+...). Numbers and types can be mixed (-polymer,5); types are case-
+insensitive. Files without an _entity category (some non-PDB files) are
+classified from their atoms: atoms with a label_seq_id are polymer, HOH, WAT
+and DOD are water, and the rest non-polymer. Rows of the other tables that
+name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selentity -<entity id or type>[,...] <cif file>
@@ -424,11 +438,12 @@ Deletes atoms by entity: by entity number (label_entity_id) or by type.
 Deletes atoms by entity: by entity number (label_entity_id) or by type.
 
 Entity types are polymer, non-polymer (ligands and ions), branched
-(glycans), macrolide and water; see mmcif_selentity. Unlike
-mmcif_delhetatm, this never cuts modified residues (HETATM records inside
-a polymer) out of their chain: -non-polymer,water removes the ligands, ions
-and waters and nothing else. Rows of _atom_site_anisotrop and _struct_conn
-of removed atoms are removed too.
+(glycans), macrolide and water; see mmcif_selentity. Unlike mmcif_delhetatm,
+this never cuts modified residues (HETATM records inside a polymer) out of
+their chain: -non-polymer,water removes the ligands, ions and waters and
+nothing else. Rows of the other tables that name removed atoms, residues or
+chains are removed too (_atom_site_anisotrop, _struct_conn,
+_pdbx_poly_seq_scheme, ...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_delentity -<entity id or type>[,...] <cif file>
@@ -458,8 +473,10 @@ The choice is made per residue, so a residue modelled as two different
 residue types (e.g. SER/THR) is never mixed. Atoms keep their order, and
 rows of _atom_site_anisotrop of removed atoms are removed too. Links
 (_struct_conn) to a removed conformer are removed, and links to a kept one
-lose their altloc label, as the atom does. A file without a label_alt_id
-column has no alternate locations and is written unchanged.
+lose their altloc label, as the atom does. The other tables follow as with
+mmcif_selatom: rows naming atoms or residues that are gone are removed. A
+file without a label_alt_id column has no alternate locations and is
+written unchanged.
 
 Usage:
     mmcif_selaltloc [-<altloc>] <cif file>
@@ -480,8 +497,10 @@ Extracts one or more models from an mmCIF file.
 
 Models are read from _atom_site.pdbx_PDB_model_num. As in pdb_selmodel, a
 file with a single model (or without model numbers) is returned whole,
-whatever model is asked for. Rows of _atom_site_anisotrop and _struct_conn
-that refer to removed atoms are removed too.
+whatever model is asked for. Rows of the other tables that name removed
+atoms, residues or chains are removed too (_atom_site_anisotrop,
+_struct_conn, _pdbx_poly_seq_scheme, ...), and ranges such as helices are
+shortened.
 
 Usage:
     mmcif_selmodel -<model id>[,<model id>...] <cif file>
@@ -504,8 +523,8 @@ Atoms are counted over the whole file, across models and data blocks.
 Unlike pdb_head, which outputs nothing but the first N ATOM/HETATM lines,
 the rest of the file (metadata categories) is kept, so the output is still
 a complete mmCIF file;
-rows of _atom_site_anisotrop and _struct_conn that refer to removed atoms
-are removed.
+rows of the other tables that name removed atoms, residues or chains are
+removed (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...).
 
 Usage:
     mmcif_head -<num> <cif file>
@@ -518,16 +537,18 @@ This program is part of the mmcif-tools suite.
 
 ### mmcif_delmeta
 
-Deletes the metadata that edits make stale, keeping the coordinates and the metadata that stays true.
+Deletes the metadata that structure prediction and simulation programs do not read, keeping the coordinates and what those programs need.
 
 ```text
-Deletes the metadata that edits make stale, keeping the coordinates and the
-metadata that stays true.
+Deletes the metadata that structure prediction and simulation programs do
+not read, keeping the coordinates and what those programs need.
 
-PDB entries carry dozens of categories that refer to residues by chain and
-number: validation reports, secondary structure, sequence schemes, sites,
-assemblies, ... The other tools do not update them, so after an edit they no
-longer match the atoms. This tool keeps:
+PDB entries carry dozens of categories besides the atoms: validation
+reports, secondary structure, sites, assemblies, experimental details, ...
+The other mmcif-tools keep the ones that name chains, residues or atoms in
+step with their edits, but some programs stop at categories they do not
+expect, and files edited by other programs may not be in step. This tool
+keeps:
 
     _atom_site                 the atoms
     _atom_site_anisotrop       their anisotropic B-factors
@@ -586,9 +607,9 @@ Removes all non-coordinate categories from an mmCIF file.
 Keeps the data_ line, _atom_site and _struct_conn (the mmCIF counterparts of
 the ATOM/HETATM and CONECT records that pdb_keepcoord keeps); every other
 category is removed, _atom_site_anisotrop included (pdb_keepcoord drops
-ANISOU records too). To keep the metadata that edits do not make stale
-(entry, method, unit cell, entities, chains, sequences, chemical
-components), use mmcif_delmeta instead.
+ANISOU records too). To keep the metadata that programs read (entry, method,
+unit cell, entities, chains, sequences, chemical components), use
+mmcif_delmeta instead.
 
 Usage:
     mmcif_keepcoord <cif file>
@@ -611,8 +632,8 @@ As in pdb_intersect, atoms are judged equal if their name, altloc, residue
 name, residue number, insertion code and chain are the same (auth
 identifiers, or label ones with --label; models are not compared), and
 coordinates are taken from the first file. Unlike pdb_intersect, the output
-is the first file with the other atoms removed (metadata kept; rows of
-_atom_site_anisotrop and _struct_conn of removed atoms removed).
+is the first file with the other atoms removed (metadata kept, in step with
+the atoms left, as with mmcif_selatom).
 
 Usage:
     mmcif_intersect <cif file> <cif file> [...]
@@ -633,9 +654,9 @@ Sets the chain identifier of all atoms in an mmCIF file.
 Sets the chain identifier of all atoms in an mmCIF file.
 
 Changes auth_asym_id (label_asym_id with --label), in _atom_site and in the
-matching columns of _atom_site_anisotrop and _struct_conn. mmCIF has no
-blank chain, so unlike pdb_chain an identifier must be given; it may be
-longer than one character.
+other tables that name chains (_struct_conn, _pdbx_poly_seq_scheme,
+_struct_conf, ...). mmCIF has no blank chain, so unlike pdb_chain an
+identifier must be given; it may be longer than one character.
 
 Usage:
     mmcif_chain -<chain id> [--label] <cif file>
@@ -654,9 +675,9 @@ Replaces one chain identifier by another in an mmCIF file.
 Replaces one chain identifier by another in an mmCIF file.
 
 Changes auth_asym_id (label_asym_id with --label), in _atom_site and in the
-matching columns of _atom_site_anisotrop and _struct_conn. Identifiers are
-case-sensitive and may be longer than one character; mmCIF has no blank
-chain, so both must be given.
+other tables that name chains (_struct_conn, _pdbx_poly_seq_scheme,
+_struct_conf, ...). Identifiers are case-sensitive and may be longer than
+one character; mmCIF has no blank chain, so both must be given.
 
 Usage:
     mmcif_rplchain -<from>:<to> [--label] <cif file>
@@ -680,8 +701,10 @@ model; a new residue starts whenever the residue name, chain, number or
 insertion code changes from one atom to the next (so 52 and 52A become two
 numbers), and insertion codes are kept. There is no upper limit.
 
-Changes auth_seq_id by default, in _atom_site and in the matching columns of
-_atom_site_anisotrop and _struct_conn. With --label it changes label_seq_id
+Changes auth_seq_id by default, in _atom_site and in the other tables that
+name residues (_struct_conn, _struct_conf, _pdbx_poly_seq_scheme, ...).
+There, residues without atoms (e.g. unobserved ones) get '?': their old
+number may now be another residue's. With --label it changes label_seq_id
 of polymer residues instead; that number links atoms to the sequence in
 _entity_poly_seq, so a warning is printed.
 
@@ -702,11 +725,11 @@ Shifts the residue numbers of an mmCIF file by a constant value.
 ```text
 Shifts the residue numbers of an mmCIF file by a constant value.
 
-Changes auth_seq_id by default, in _atom_site and in the matching columns of
-_atom_site_anisotrop and _struct_conn; insertion codes are kept. With
---label it shifts label_seq_id of polymer residues instead; that number
-links atoms to the sequence in _entity_poly_seq, so a warning is printed.
-There is no upper or lower limit.
+Changes auth_seq_id by default, in _atom_site and in the other tables that
+name residues (_struct_conn, _pdbx_poly_seq_scheme, _struct_conf, ...);
+insertion codes are kept. With --label it shifts label_seq_id of polymer
+residues instead; that number links atoms to the sequence in
+_entity_poly_seq, so a warning is printed. There is no upper or lower limit.
 
 Usage:
     mmcif_shiftres -<number> [--label] <cif file>
@@ -735,11 +758,11 @@ numbering of the rest of the chain up by one: 51, 52A, 52B, 53 becomes
 The shift restarts at each new chain instance (a change of chain or of
 label_asym_id, e.g. between a protein and its ligands or waters: where
 pdb_fixinsert meets a TER record) and in each model (pdb_fixinsert never
-restarts between models). Chains may have several
-characters and numbers may be negative: -A9,B12,AB-3. Insertion codes only
-exist with author identifiers, so --label is not accepted. The matching
-columns of _atom_site_anisotrop and _struct_conn are updated too. A file
-without a pdbx_PDB_ins_code column (e.g. an integrative model) has no
+restarts between models). Chains may have several characters and numbers may
+be negative: -A9,B12,AB-3. Insertion codes only exist with author
+identifiers, so --label is not accepted. The other tables that name residues
+(_struct_conn, _pdbx_poly_seq_scheme, _struct_conf, ...) are updated too. A
+file without a pdbx_PDB_ins_code column (e.g. an integrative model) has no
 insertion codes and is written unchanged.
 
 Usage:
@@ -807,10 +830,12 @@ Replaces one residue name by another in an mmCIF file.
 Residue names are the same chemical identity in both identifier schemes,
 and programs differ in which one they read, so both auth_comp_id and
 label_comp_id are changed (whatever --auth/--label says), together with the
-residue names in _atom_site_anisotrop and _struct_conn. Names are matched
-exactly (case-sensitive) and may be longer than three characters. Other
-categories that list residue names (_entity_poly_seq, _pdbx_poly_seq_scheme,
-_chem_comp, ...) are not changed.
+residue names of the other tables that name residues (_struct_conn,
+_pdbx_poly_seq_scheme, _struct_conf, ...) and of the sequences
+(_entity_poly_seq, _pdbx_entity_nonpoly). The definitions of the residues
+(_chem_comp, _chem_comp_atom, ...) are not changed: they describe the old
+residue. Names are matched exactly (case-sensitive) and may be longer than
+three characters.
 
 Usage:
     mmcif_rplresname -<from>:<to> <cif file>
@@ -835,9 +860,11 @@ an error.
 
 Atom names are the same chemical identity in both identifier schemes, so
 both auth_atom_id and label_atom_id are changed, together with the atom
-names of _atom_site_anisotrop and _struct_conn (pdb_uniqname leaves ANISOU
-records alone). Residues are told apart by model, name, chain, number and
-insertion code (auth identifiers, or label ones with --label).
+names of _atom_site_anisotrop (pdb_uniqname leaves ANISOU records alone)
+and of the other tables that name atoms (_struct_conn,
+_pdbx_struct_conn_angle, _pdbx_validate_close_contact, ...). Residues are
+told apart by model, name, chain, number and insertion code (auth
+identifiers, or label ones with --label).
 
 Usage:
     mmcif_uniqname <cif file>
@@ -942,9 +969,9 @@ one of them:
              label_seq_id and keep their numbers.
 
 This is the mmCIF counterpart of pdb_chainxseg / pdb_segxchain and, with
--chain, of pdb_chainbows. Rows of _atom_site_anisotrop and _struct_conn
-follow. Other categories that mention author chains or residue numbers
-(_pdbx_poly_seq_scheme, _struct_conf, ...) are not updated. A file without
+-chain, of pdb_chainbows. The other tables that name chains or residues
+(_struct_conn, _struct_conf, _pdbx_poly_seq_scheme, ...) follow; residues
+without atoms get the ids of their label ones there too. A file without
 auth_asym_id or auth_seq_id columns (e.g. an integrative model) gets them;
 residues without a label_seq_id are then numbered '?'. Nothing is
 written if two residues would end up with the same chain and number, e.g.
@@ -980,10 +1007,9 @@ label_seq_id):
     and insertion codes) do not. mmcif_label2auth -res goes the other way.
 
 Nothing is written if an author chain holds more than one polymer, or if a
-new label chain is already the label chain of another molecule. Rows of
-_atom_site_anisotrop and _struct_conn follow; other categories that mention
-label chains (_struct_asym, _pdbx_poly_seq_scheme, ...) are not updated, as
-with mmcif_rplchain --label.
+new label chain is already the label chain of another molecule. The other
+tables that name label chains (_struct_asym, _pdbx_poly_seq_scheme,
+_struct_conn, ...) follow, as with mmcif_rplchain --label.
 
 Usage:
     mmcif_auth2label <cif file>
@@ -1007,8 +1033,10 @@ As pdb_splitchain, writes <name>_<chain>.cif files in the current directory
 (<name> is the input file name without its extension, or 'splitchains' when
 reading stdin), overwriting existing ones, and prints nothing. Unlike
 pdb_splitchain, each file is a complete mmCIF file: the metadata
-categories are kept, the data block is renamed <block>_<chain>, and rows of
-_atom_site_anisotrop and _struct_conn of other chains are removed.
+categories are kept, the data block is renamed <block>_<chain>, and the
+rows of other chains are removed (_atom_site_anisotrop, _struct_conn,
+_struct_conf, _pdbx_poly_seq_scheme, the molecules with no atoms left, ...),
+as mmcif_selchain does.
 
 Chains are auth_asym_id (label_asym_id with --label).
 
@@ -1034,13 +1062,14 @@ Splits an mmCIF file into several, each containing one model.
 Splits an mmCIF file into several, each containing one model.
 
 As pdb_splitmodel, writes <name>_<model>.cif files in the current directory
-(<name> is the input file name without its extension, or 'splitmodels'
-when reading stdin), named by the model numbers as written, and prints
-nothing. Unlike pdb_splitmodel, which writes nothing for a file without
-MODEL records, a single-model file gives one file; and each file is a
-complete mmCIF file: the metadata categories are kept, the data block is
-renamed <block>_<model>, and rows of _atom_site_anisotrop and _struct_conn
-of removed atoms are removed.
+(<name> is the input file name without its extension, or 'splitmodels' when
+reading stdin), named by the model numbers as written, and prints nothing.
+Unlike pdb_splitmodel, which writes nothing for a file without MODEL
+records, a single-model file gives one file; and each file is a complete
+mmCIF file: the metadata categories are kept, the data block is renamed
+<block>_<model>, and rows of the other tables that name removed atoms,
+residues or chains are removed (_atom_site_anisotrop, _struct_conn,
+_pdbx_poly_seq_scheme, ...).
 
 Usage:
     mmcif_splitmodel <cif file>
@@ -1486,7 +1515,11 @@ mandatory items). Errors:
     - rows of _atom_site_anisotrop or _struct_conn that match no atom
 
 Warnings: only one identifier scheme (auth_* or label_*) present,
-occupancies outside 0-1.
+occupancies outside 0-1, and metadata out of step with the atoms: rows of
+the tables that name residues or atoms (_struct_conf,
+_pdbx_poly_seq_scheme, _pdbx_validate_*, ...) whose author ids differ from
+those of the atoms with the same label ids, or that name atoms or residues
+the file does not have (tables of missing residues aside).
 
 Prints one line per problem (the first 20 of each kind) and a summary.
 The exit status is 1 if there are errors, 0 otherwise.

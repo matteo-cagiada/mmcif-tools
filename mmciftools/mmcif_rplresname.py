@@ -21,10 +21,12 @@ Replaces one residue name by another in an mmCIF file.
 Residue names are the same chemical identity in both identifier schemes,
 and programs differ in which one they read, so both auth_comp_id and
 label_comp_id are changed (whatever --auth/--label says), together with the
-residue names in _atom_site_anisotrop and _struct_conn. Names are matched
-exactly (case-sensitive) and may be longer than three characters. Other
-categories that list residue names (_entity_poly_seq, _pdbx_poly_seq_scheme,
-_chem_comp, ...) are not changed.
+residue names of the other tables that name residues (_struct_conn,
+_pdbx_poly_seq_scheme, _struct_conf, ...) and of the sequences
+(_entity_poly_seq, _pdbx_entity_nonpoly). The definitions of the residues
+(_chem_comp, _chem_comp_atom, ...) are not changed: they describe the old
+residue. Names are matched exactly (case-sensitive) and may be longer than
+three characters.
 
 Usage:
     mmcif_rplresname -<from>:<to> <cif file>
@@ -37,14 +39,9 @@ This program is part of the mmcif-tools suite.
 
 import sys
 
-from mmciftools import _atoms, _cli
+from mmciftools import _atoms, _cli, _refs
 
-COLUMNS = {
-    _atoms.ATOM_SITE: ['auth_comp_id', 'label_comp_id'],
-    _atoms.ANISOTROP: ['pdbx_auth_comp_id', 'pdbx_label_comp_id'],
-    _atoms.STRUCT_CONN: ['ptnr1_auth_comp_id', 'ptnr1_label_comp_id',
-                         'ptnr2_auth_comp_id', 'ptnr2_label_comp_id'],
-}
+COLUMNS = _refs.residue_name_columns()
 
 
 def check_input(args):

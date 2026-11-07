@@ -19,9 +19,9 @@
 Replaces one chain identifier by another in an mmCIF file.
 
 Changes auth_asym_id (label_asym_id with --label), in _atom_site and in the
-matching columns of _atom_site_anisotrop and _struct_conn. Identifiers are
-case-sensitive and may be longer than one character; mmCIF has no blank
-chain, so both must be given.
+other tables that name chains (_struct_conn, _pdbx_poly_seq_scheme,
+_struct_conf, ...). Identifiers are case-sensitive and may be longer than
+one character; mmCIF has no blank chain, so both must be given.
 
 Usage:
     mmcif_rplchain -<from>:<to> [--label] <cif file>

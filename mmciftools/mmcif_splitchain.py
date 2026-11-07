@@ -22,8 +22,10 @@ As pdb_splitchain, writes <name>_<chain>.cif files in the current directory
 (<name> is the input file name without its extension, or 'splitchains' when
 reading stdin), overwriting existing ones, and prints nothing. Unlike
 pdb_splitchain, each file is a complete mmCIF file: the metadata
-categories are kept, the data block is renamed <block>_<chain>, and rows of
-_atom_site_anisotrop and _struct_conn of other chains are removed.
+categories are kept, the data block is renamed <block>_<chain>, and the
+rows of other chains are removed (_atom_site_anisotrop, _struct_conn,
+_struct_conf, _pdbx_poly_seq_scheme, the molecules with no atoms left, ...),
+as mmcif_selchain does.
 
 Chains are auth_asym_id (label_asym_id with --label).
 
@@ -44,7 +46,7 @@ This program is part of the mmcif-tools suite.
 import os
 import sys
 
-from mmciftools import _atoms, _cif, _cli
+from mmciftools import _atoms, _cif, _cli, _refs
 
 
 def check_input(args):
@@ -63,56 +65,35 @@ def chains_of(source, scheme=None):
 
 
 def survey(source, scheme=None):
-    """(chain ids in order, link routing, whether the file has anisotropic rows).
+    """(chain ids in order, _refs.Removal with the chains as owners, whether
+    the file has anisotropic rows)."""
+    has_aniso = any(type(ev) is _cif.Loop for ev in _cif.parse(source.lines(), _atoms.ANISOTROP))
+    chains = {}
 
-    Link routing is (columns, {partner identity: chains of the atoms that
-    have it}) for the partners of _struct_conn rows, as filter_atoms judges
-    them; None when there are no links to route.
-    """
-    conn_loop, conns, has_aniso = None, [], False
-    for ev in _cif.parse(source.lines(), (_atoms.STRUCT_CONN, _atoms.ANISOTROP)):
-        if type(ev) is _cif.Row and ev.loop.category.lower() == _atoms.STRUCT_CONN:
-            conns.append(ev)
-        elif type(ev) is _cif.Loop:
-            if ev.category.lower() == _atoms.STRUCT_CONN:
-                conn_loop = ev
-            else:
-                has_aniso = True
-    chains, owners, columns = {}, {}, None
-    for ev in _cif.parse(source.lines()):
-        if type(ev) is _cif.Row:
-            values = ev.values
+    def make_owner(loop):
+        fields = _atoms.Fields(loop, scheme)
+        fields.need('chain')
+        chain = fields.chain
+
+        def owner(values):
             chains.setdefault(values[chain], None)
-            if atom_key is not None:
-                key = atom_key(values)
-                if key in wanted:
-                    owners.setdefault(key, set()).add(values[chain])
-        elif type(ev) is _cif.Loop:
-            fields = _atoms.Fields(ev, scheme)
-            fields.need('chain')
-            chain = fields.chain
-            atom_key = None
-            if conns and columns is None:
-                columns = _atoms._link_columns(ev, conn_loop)
-                if columns:
-                    atom_key = _atoms.getter(*[ev.index(a) for a, _ in columns])
-                    first, second = _atoms._partner_getters(conn_loop, columns)
-                    wanted = {g(r.values) for r in conns for g in (first, second)}
-    routing = (columns, owners) if conns and columns else None
-    return list(chains), routing, has_aniso
+            return values[chain]
+        return owner
+    removal = _refs.Removal(source, make_owner)
+    return list(chains), removal, has_aniso
 
 
-def _write_batch(source, batch, scheme, routing, has_aniso):
+def _write_batch(source, batch, scheme, removal, has_aniso):
     """Write the files of `batch` ({chain: path}) in one reading of the input."""
     handles = {c: open(p, 'w', encoding=_cif.ENCODING, errors=_cif.ERRORS, newline='')
                for c, p in batch.items()}
     writers = {c: _cif.Writer(fh) for c, fh in handles.items()}
     everyone = list(writers.values())
-    if routing is not None:
-        columns, owners = routing
+    views = dict(zip(batch, removal.views(list(batch))))
+    following = set(_refs.FOLLOWING)
     try:
         kind, id_chain = None, {}
-        events = _cif.parse(source.lines(), (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN))
+        events = _cif.parse(source.lines(), (_atoms.ATOM_SITE, _atoms.ANISOTROP) + _refs.FOLLOWING)
         for ev in events:
             etype = type(ev)
             if etype is _cif.Row:
@@ -130,15 +111,13 @@ def _write_batch(source, batch, scheme, routing, has_aniso):
                         if owner in writers:
                             writers[owner].write(ev)
                         continue
-                elif kind == _atoms.STRUCT_CONN and routing is not None:
-                    allowed = None  # chains whose files keep this link (None: all)
-                    for partner in (first(ev.values), second(ev.values)):
-                        found = owners.get(partner)
-                        if found is not None:  # a partner that exists in the input
-                            allowed = found if allowed is None else allowed & found
+                elif kind in following:
+                    candidates = removal.candidates(ev)
                     for c, writer in writers.items():
-                        if allowed is None or c in allowed:
-                            writer.write(ev)
+                        if candidates is None or c in candidates:
+                            row = _cif.Row(ev.loop, ev.values, ev.lead, ev.text, ev.lineno)  # each file edits its own
+                            if views[c].row(row):
+                                writer.write(row)
                     continue
                 for writer in everyone:
                     writer.write(ev)
@@ -155,8 +134,6 @@ def _write_batch(source, batch, scheme, routing, has_aniso):
                     chain_pos, id_pos = fields.chain, fields.id
                 elif kind == _atoms.ANISOTROP:
                     aniso_id = ev.index('id') if 'id' in ev else None
-                elif kind == _atoms.STRUCT_CONN and routing is not None:
-                    first, second = _atoms._partner_getters(ev, columns)
             elif etype is _cif.LoopEnd:
                 kind = None
             for writer in everyone:
@@ -185,7 +162,7 @@ def run(fhandle, base, scheme=None, outdir='.', notes=None):
     """Write one file per chain; return their paths. `notes`, if given, is a
     list that receives a message for each file name changed to stay unique."""
     source = _atoms.as_source(fhandle)
-    chains, routing, has_aniso = survey(source, scheme)
+    chains, removal, has_aniso = survey(source, scheme)
     names = file_names(base, chains)
     if notes is not None:
         for chain_id, name in names.items():
@@ -195,7 +172,7 @@ def run(fhandle, base, scheme=None, outdir='.', notes=None):
     paths = {c: os.path.join(outdir, n) for c, n in names.items()}
     for start in range(0, len(chains), BATCH):
         batch = {c: paths[c] for c in chains[start:start + BATCH]}
-        _write_batch(source, batch, scheme, routing, has_aniso)
+        _write_batch(source, batch, scheme, removal, has_aniso)
     return [paths[c] for c in chains]
 
 

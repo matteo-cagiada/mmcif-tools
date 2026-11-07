@@ -15,13 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Deletes the metadata that edits make stale, keeping the coordinates and the
-metadata that stays true.
+Deletes the metadata that structure prediction and simulation programs do
+not read, keeping the coordinates and what those programs need.
 
-PDB entries carry dozens of categories that refer to residues by chain and
-number: validation reports, secondary structure, sequence schemes, sites,
-assemblies, ... The other tools do not update them, so after an edit they no
-longer match the atoms. This tool keeps:
+PDB entries carry dozens of categories besides the atoms: validation
+reports, secondary structure, sites, assemblies, experimental details, ...
+The other mmcif-tools keep the ones that name chains, residues or atoms in
+step with their edits, but some programs stop at categories they do not
+expect, and files edited by other programs may not be in step. This tool
+keeps:
 
     _atom_site                 the atoms
     _atom_site_anisotrop       their anisotropic B-factors

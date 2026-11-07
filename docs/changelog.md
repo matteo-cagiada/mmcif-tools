@@ -7,8 +7,25 @@ command names and options may still change.
 
 ## Unreleased
 
-No changes to the tools.
-
+- **The metadata follows the edits.** Every tool keeps the tables that name chains, residues or atoms in step with
+  the atoms, not only `_atom_site_anisotrop` and `_struct_conn`: the sequence schemes, the secondary structure,
+  the sites, the validation reports, the assemblies, model quality (`_ma_qa_metric_local`), and more (42 tables).
+  - **Renames** (`mmcif_chain`, `mmcif_rplchain`, `mmcif_reres`, `mmcif_shiftres`, `mmcif_fixinsert`,
+    `mmcif_label2auth`, `mmcif_auth2label`, `mmcif_rplresname`, `mmcif_uniqname`) reach every table. After
+    `mmcif_reres`, residues without atoms get `?` as their author number: their old number may now be another
+    residue's. `mmcif_label2auth` gives them their label ids. `mmcif_rplresname` also renames the residue in the
+    sequences (`_entity_poly_seq`), not in the definitions (`_chem_comp`).
+  - **Removals** (the `sel` and `del` tools, `mmcif_head`, `mmcif_selaltloc`, `mmcif_intersect`, and the split
+    tools): rows naming removed atoms, residues, chains or molecules are removed, the sequences included; helices,
+    strands and alignments that lose their ends are shortened; lists of chains are pruned; sheets, sites and
+    assemblies left without parts are removed; and `_entity.pdbx_number_of_molecules` and the one-letter sequences
+    are updated. Residues that had no atoms in the input stay.
+  - **Cost:** one more reading of the file. The tools that remove atoms take about twice as long (4HHB: 0.06 to
+    0.15 s; a 238,000-atom ribosome, 4V6X: 1.6 to 2.3-3.2 s, with up to 50 MB more memory); renames take 10-25%
+    longer.
+- **`mmcif_validate`** warns about metadata out of step with the atoms.
+- **`mmcif_delmeta`** is no longer needed to fix stale metadata: it deletes what prediction and simulation programs
+  do not read. The README's "Metadata goes stale" is now "Metadata follows the edits".
 - **DOI:** mmcif-tools is archived on Zenodo, [10.5281/zenodo.23966235](https://doi.org/10.5281/zenodo.23966235)
   (all versions; 0.1.2 is [10.5281/zenodo.23966236](https://doi.org/10.5281/zenodo.23966236)). The README has a
   DOI badge and explains how to cite the software, with a BibTeX entry, and CITATION.cff gives the DOI.

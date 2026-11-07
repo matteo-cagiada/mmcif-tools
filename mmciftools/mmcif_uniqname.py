@@ -25,9 +25,11 @@ an error.
 
 Atom names are the same chemical identity in both identifier schemes, so
 both auth_atom_id and label_atom_id are changed, together with the atom
-names of _atom_site_anisotrop and _struct_conn (pdb_uniqname leaves ANISOU
-records alone). Residues are told apart by model, name, chain, number and
-insertion code (auth identifiers, or label ones with --label).
+names of _atom_site_anisotrop (pdb_uniqname leaves ANISOU records alone)
+and of the other tables that name atoms (_struct_conn,
+_pdbx_struct_conn_angle, _pdbx_validate_close_contact, ...). Residues are
+told apart by model, name, chain, number and insertion code (auth
+identifiers, or label ones with --label).
 
 Usage:
     mmcif_uniqname <cif file>
@@ -40,7 +42,7 @@ This program is part of the mmcif-tools suite.
 
 import sys
 
-from mmciftools import _atoms, _cif, _cli
+from mmciftools import _atoms, _cif, _cli, _refs
 
 NULLS = ('.', '?')
 NAME_COLUMNS = ('auth_atom_id', 'label_atom_id')
@@ -81,10 +83,10 @@ def run(fhandle, scheme=None):
     source = _atoms.as_source(fhandle)
 
     # First look: the new names, by atom id (for _atom_site_anisotrop) and by
-    # link identity (for _struct_conn, which comes before _atom_site).
+    # atom (for the other tables, which mostly come before _atom_site).
     by_id, renamed = {}, []
-    conn_loop = atom_loop = None
-    for ev in _cif.parse(source.lines(), (_atoms.STRUCT_CONN, _atoms.ATOM_SITE)):
+    atom_loop = None
+    for ev in _cif.parse(source.lines(), _atoms.ATOM_SITE):
         if type(ev) is _cif.Row:
             if ev.loop is atom_loop:
                 new = name(ev)
@@ -92,22 +94,15 @@ def run(fhandle, scheme=None):
                     renamed.append((ev.values, new))
                     if id_pos is not None:
                         by_id[ev.values[id_pos]] = new
-        elif type(ev) is _cif.Loop:
-            if ev.category.lower() == _atoms.STRUCT_CONN:
-                conn_loop = ev
-            elif atom_loop is None:
-                atom_loop = ev
-                fields = _atoms.Fields(ev, scheme)
-                name, id_pos = _namer(fields), fields.id
-    links, columns = {}, None
-    if conn_loop is not None and atom_loop is not None:
-        columns = _atoms._link_columns(atom_loop, conn_loop)
-        if columns:
-            atom_key = _atoms.getter(*[atom_loop.index(a) for a, _ in columns])
-            links = {atom_key(values): new for values, new in renamed}
+        elif type(ev) is _cif.Loop and atom_loop is None:
+            atom_loop = ev
+            fields = _atoms.Fields(ev, scheme)
+            name, id_pos = _namer(fields), fields.id
+    names = _refs.AtomNames(atom_loop, renamed) if renamed else None
 
     kind = None
-    for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)):
+    categories = (_atoms.ATOM_SITE,) + (_refs.CATEGORIES if names else ())
+    for ev in _cif.parse(source.lines(), categories):
         etype = type(ev)
         if etype is _cif.Row:
             if kind == _atoms.ATOM_SITE:
@@ -121,12 +116,8 @@ def run(fhandle, scheme=None):
                 if new is not None:
                     for col in aniso_cols:
                         ev[col] = new
-            elif kind == _atoms.STRUCT_CONN and links:
-                for partner, cols in partners:
-                    new = links.get(partner(ev.values))
-                    if new is not None:
-                        for col in cols:
-                            ev[col] = new
+            elif kind is not None:
+                names.follow(ev)
         elif etype is _cif.Loop:
             kind = ev.category.lower()
             if kind == _atoms.ATOM_SITE:
@@ -134,11 +125,6 @@ def run(fhandle, scheme=None):
                 name_cols = [c for c in NAME_COLUMNS if c in ev]
             elif kind == _atoms.ANISOTROP:
                 aniso_cols = [c for c in ('pdbx_auth_atom_id', 'pdbx_label_atom_id') if c in ev]
-            elif kind == _atoms.STRUCT_CONN and links:
-                first, second = _atoms._partner_getters(ev, columns)
-                partners = [(getter, [c.format(n) for c in ('ptnr{}_label_atom_id', 'ptnr{}_auth_atom_id')
-                                      if c.format(n) in ev])
-                            for n, getter in ((1, first), (2, second))]
         elif etype is _cif.LoopEnd:
             kind = None
         yield ev

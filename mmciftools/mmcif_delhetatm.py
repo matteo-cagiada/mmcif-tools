@@ -18,8 +18,10 @@
 """
 Removes all HETATM records (ligands, ions, waters, ...) from an mmCIF file.
 
-Atoms are selected on _atom_site.group_PDB. Rows of _atom_site_anisotrop
-and _struct_conn that refer to removed atoms are removed too.
+Atoms are selected on _atom_site.group_PDB. Rows of the other tables that
+name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_delhetatm <cif file>

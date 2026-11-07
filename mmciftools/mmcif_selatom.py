@@ -21,8 +21,9 @@ Selects all atoms matching the given name(s) in an mmCIF file.
 Atom names are matched on auth_atom_id (label_atom_id with --label); the
 names given are upper-cased, as in pdb_selatom. mmCIF atom names carry no
 padding, so -CA keeps alpha carbons and calcium ions alike, as pdb_selatom
-does. Rows of _atom_site_anisotrop and _struct_conn that refer to removed
-atoms are removed too.
+does. Rows of the other tables that name removed atoms, residues or chains
+are removed too (_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme,
+...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_selatom -<name>[,<name>...] <cif file>

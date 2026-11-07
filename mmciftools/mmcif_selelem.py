@@ -19,9 +19,10 @@
 Selects all atoms of the given element(s) in an mmCIF file.
 
 Elements are read from _atom_site.type_symbol and compared ignoring case
-(pdb_selelem only matches upper-case elements). Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+(pdb_selelem only matches upper-case elements). Rows of the other tables
+that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selelem -<element>[,<element>...] <cif file>

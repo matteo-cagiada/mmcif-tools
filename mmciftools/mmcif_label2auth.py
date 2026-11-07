@@ -30,9 +30,9 @@ one of them:
              label_seq_id and keep their numbers.
 
 This is the mmCIF counterpart of pdb_chainxseg / pdb_segxchain and, with
--chain, of pdb_chainbows. Rows of _atom_site_anisotrop and _struct_conn
-follow. Other categories that mention author chains or residue numbers
-(_pdbx_poly_seq_scheme, _struct_conf, ...) are not updated. A file without
+-chain, of pdb_chainbows. The other tables that name chains or residues
+(_struct_conn, _struct_conf, _pdbx_poly_seq_scheme, ...) follow; residues
+without atoms get the ids of their label ones there too. A file without
 auth_asym_id or auth_seq_id columns (e.g. an integrative model) gets them;
 residues without a label_seq_id are then numbered '?'. Nothing is
 written if two residues would end up with the same chain and number, e.g.
@@ -50,7 +50,7 @@ This program is part of the mmcif-tools suite.
 
 import sys
 
-from mmciftools import _atoms, _cif, _cli
+from mmciftools import _atoms, _cif, _cli, _refs
 
 NULLS = ('.', '?')
 OPTIONS = ('chain', 'res')
@@ -95,19 +95,27 @@ def _new_ids(loop, chains, residues):
 
 
 def residue_map(source, chains, residues):
-    """{old (chain, number, insertion code): new one}, after checking that no
-    two residues get the same new identifiers. Old (chain, number) pairs are
+    """({old (chain, number, insertion code): new one}, {old chain: new chain
+    of its polymer}, {entity: new chains}), after checking that no two
+    residues get the same new identifiers. Old (chain, number) pairs are
     keys too, for rows without an insertion code column (None when two
     residues share them)."""
-    mapping, owner = {}, {}
+    mapping, owner, polymers, strands = {}, {}, {}, {}
     for ev in _cif.parse(source.lines(), _atoms.ATOM_SITE):
         if type(ev) is _cif.Row:
             values = ev.values
             old, new = new_ids(values)
-            if old not in mapping:
-                mapping[old] = new
+            key = (old[0], old[1], _icode(old[2]))
+            if key not in mapping:
+                mapping[key] = new
                 short = old[:2]
                 mapping[short] = new if short not in mapping else None
+                if label_seq is not None and _atoms.as_int(values[label_seq]) is not None:
+                    polymers.setdefault(old[0], new[0])
+                if entity is not None:
+                    here = strands.setdefault(values[entity], [])
+                    if new[0] not in here:
+                        here.append(new[0])
             here = (model(values), new)
             ident = (old, values[label_chain]) if label_chain is not None else old
             first = owner.setdefault(here, ident)
@@ -121,7 +129,37 @@ def residue_map(source, chains, residues):
             model = _atoms.getter(ev.index('pdbx_PDB_model_num')
                                   if 'pdbx_PDB_model_num' in ev else None)
             label_chain = ev.index('label_asym_id') if 'label_asym_id' in ev else None
-    return mapping
+            label_seq = ev.index('label_seq_id') if 'label_seq_id' in ev else None
+            entity = ev.index('label_entity_id') if 'label_entity_id' in ev else None
+    return mapping, polymers, strands
+
+
+def _follow(row, values, bound, mapping, polymers, chains, residues):
+    """Give the residue a row names (a group of _refs) its new author ids;
+    a residue without atoms gets them from its label ids. `values` are the
+    row's values as read (groups may share a column)."""
+    roles = bound.updates
+
+    def first(role):
+        return values[roles[role][0]] if role in roles else None
+
+    old = (first('auth_asym'), first('auth_seq'), first('icode'))
+    if old[0] is None and old[1] is None:
+        return
+    new = mapping.get((old[0], old[1], _icode(old[2])) if 'icode' in roles else old[:2])
+    if new is None:
+        chain, number, icode = old
+        label = first('label_asym')
+        if chains:
+            chain = label if label is not None and label not in NULLS else polymers.get(chain, chain)
+        seq = first('label_seq')
+        if residues and seq is not None and _atoms.as_int(seq) is not None:
+            number, icode = seq, '?'
+        new = (chain, number, icode)
+    for role, after in zip(('auth_asym', 'auth_seq', 'icode'), new):
+        for p in roles.get(role, ()):
+            if after is not None and values[p] not in NULLS and after != row.values[p]:
+                row[row.loop.columns[p]] = after
 
 
 def _icode(icode):
@@ -135,9 +173,9 @@ def _name(ids):
 def run(fhandle, chains=True, residues=True, scheme=None):
     """Yield the events of the file with label identifiers copied."""
     source = _atoms.as_source(fhandle)
-    mapping = residue_map(source, chains, residues)
+    mapping, polymers, strands = residue_map(source, chains, residues)
     kind = None
-    for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)):
+    for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE,) + _refs.CATEGORIES):
         etype = type(ev)
         if etype is _cif.Row:
             if kind == _atoms.ATOM_SITE:
@@ -148,15 +186,13 @@ def run(fhandle, chains=True, residues=True, scheme=None):
                     if column is not None and after is not None and after != before:
                         ev[column] = after
             elif kind is not None:
-                for positions in refs:
-                    values = ev.values
-                    old = tuple(values[p] if p is not None else None for p in positions)
-                    new = mapping.get(old if positions[2] is not None else old[:2])
-                    if new is None:
-                        continue
-                    for p, before, after in zip(positions, old, new):
-                        if p is not None and after != before:
-                            ev[ev.loop.columns[p]] = after
+                values = ev.values
+                for bound in refs:
+                    _follow(ev, values, bound, mapping, polymers, chains, residues)
+                if kind == '_entity_poly' and chains and 'pdbx_strand_id' in ev:
+                    new = strands.get(ev.get('entity_id'))
+                    if new and ev['pdbx_strand_id'] not in NULLS and ev['pdbx_strand_id'] != ','.join(new):
+                        ev['pdbx_strand_id'] = ','.join(new)
             yield ev
             continue
         if etype is _cif.Loop:
@@ -171,7 +207,7 @@ def run(fhandle, chains=True, residues=True, scheme=None):
                 if target is not None:
                     ev = target
             else:
-                refs = [r[:3] for r in _atoms._reference_columns(ev, 'auth')]
+                refs = _refs.bind(ev)
         elif etype is _cif.LoopEnd:
             kind = None
         yield ev

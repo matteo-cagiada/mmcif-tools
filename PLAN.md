@@ -177,7 +177,8 @@ tools, chainbows and the two chain/segment swaps), plus 6 new: 48 tools.
 | **3. CIF extras** | 🆕 tools (without `mmcif_prune`), the `mmcif_frompdb` TER fix, leftovers from phases 1–2 | Done (§11) |
 | **4. Test release 0.1.0** | Rename to mmcif-tools; gemmi out of the package and tests (separate script); tool reference, CHANGELOG, CITATION; packaging metadata; CI up to Python 3.15; entity, assembly and info tools | Done (§12) |
 | **5. Public release** | Feedback from testers; user guide (GitHub Pages); PyPI (TestPyPI first, trusted publishing on a tag), then conda-forge | `pip install mmcif-tools` works |
-| **6. After the first release** | `mmcif_prune` (§7, decision 9) | |
+| **6. After the first release** | `mmcif_prune` (§7, decision 9) | Replaced by phase 7 |
+| **7. Release 0.2.0: metadata in step** | Every tool keeps the tables that name chains, residues or atoms in step with its edits (§15) | No tool leaves a stale reference on the real entries |
 
 Before phase 1, one useful step: **grep our own lab scripts/pipelines for `pdb_` calls** to rank the tools by how
 much we use them, and adjust the "Core 20" list.
@@ -842,3 +843,71 @@ the reports.
 - **The only change from round 1:** 3 more refusals, as intended. On the integrative entry 9A1M, which has no
   `auth_seq_id`, `mmcif_reres` and `mmcif_shiftres` (both forms) now refuse instead of renumbering
   `label_seq_id`.
+
+## 15. Phase 7 (2026-11-07): metadata in step with the edits
+
+**The problem.** Users read the metadata after an edit and think nothing changed: after `mmcif_reres` the
+secondary structure, the sites and the sequence schemes still give the old numbers. Today only
+`_atom_site_anisotrop` and `_struct_conn` follow the edits (`_atoms.filter_atoms` and `_atoms.rename`), and
+`mmcif_delmeta` brings a few tables it keeps back in step. The real entries carry 7 to 26 other tables that name
+a chain, a residue or an atom (4V6X: 62,000 such rows for 238,000 atoms).
+
+**Decisions (2026-11-07):**
+
+23. **On by default**, with no option: stale metadata is never wanted, and `_struct_conn` already follows the
+    edits by default.
+24. **Removed residues leave the sequence tables.** When a tool removes residues (`mmcif_selchain`,
+    `mmcif_delres`, ...), their rows go from `_pdbx_poly_seq_scheme`, and a position of `_entity_poly_seq` goes
+    when no chain of the molecule keeps it. Residues the input already had no atoms for (unobserved) stay.
+25. **What the browser page finishes with** (`mmcif_delmeta` ticked or not) is decided later.
+
+**How:**
+
+- **A list of references** (`mmciftools/_refs.py`): for each table, the groups of columns that together name a
+  chain, a residue or an atom, by role (label or author chain, number, name, atom; insertion code; alt id), and
+  what a group is: a point, one end of a range, or a list of chains.
+- **Matching.** A group names something through the columns it has. It is compared with the atoms on the roles
+  both have (validation tables have author ids only, `_ma_qa_metric_local` label ids only); alt ids are not
+  compared, and `.` / `?` are the same.
+- **Renames** (`_atoms.rename`): the tool's chain and number mapping is applied to every listed table, as it is
+  to `_struct_conn` today.
+- **Removals** (`_atoms.filter_atoms`): a first look finds the residues and atoms the tool removes (present in
+  the input, absent from the output). Rows naming one are removed; a range whose end was removed is trimmed to
+  the residues left, or removed when none is left; lists of chains are pruned. Only what the tool removed
+  counts: a reference to an unobserved residue stays as it is.
+- **Totals** (`_entity.pdbx_number_of_molecules`, `_entity_poly.pdbx_strand_id`, rows of molecules and chains
+  with no atoms left) follow, as `mmcif_delmeta` does them now.
+- **Cost:** a per-residue map and the referenced atoms, not every atom. A first read of the atoms takes 0.5 s on
+  4V6X (`mmcif_selchain`: 1.5 s in all).
+
+**Out of scope for 0.2.0:** tools that make new chains (`mmcif_assembly`, `mmcif_merge`,
+`mmcif_mkensemble`) and `--label` renumbering keep what they do now.
+
+**Done (2026-11-07, on `dev`):**
+
+- **`mmciftools/_refs.py`:** the list of 42 tables and their groups; the checker (`problems()`, also used by
+  `mmcif_validate`, as warnings); `Removal` / `View`, the removals; and the helpers for renames and names.
+  `_atoms.filter_atoms` and `_atoms.rename` use it, and so do `mmcif_splitchain` (one view per chain, the chains
+  as owners of one first look), `mmcif_selaltloc`, `mmcif_label2auth`, `mmcif_fixinsert`, `mmcif_rplresname` and
+  `mmcif_uniqname`.
+- **Residues without atoms:** `mmcif_reres` gives them `?` (their old number may now be another residue's);
+  `mmcif_shiftres` shifts them; `mmcif_label2auth` gives them their label ids. `mmcif_fixinsert` leaves them.
+- **Checks on the 12 real entries** (every tool call of `tests/test_real.py`): before, every tool that edits
+  chains, residues or atoms except `mmcif_sort` and `mmcif_selmodel` left rows out of step, from 1 to 4,600 per
+  tool and entry; now none. The checker finds nothing in the unedited entries. The only rows it still flags
+  are after `mmcif_label2auth`, and they are right: a chain is renamed to a name another chain had, so the
+  before/after comparison mistakes a row for the old residue.
+- **Bugs found on the way:** `_struct_ref_seq` names its chain once for both ends, so a chain was renamed twice;
+  `_struct_ref_seq_dif` has only the label residue name, so a residue modelled as two types took the wrong
+  number; `mmcif_label2auth` compared insertion codes `.` and `?` as different.
+- **Tests:** `tests/test_refs.py` (13: the checker over every tool on the entries under 1 MB, renames, removals,
+  trimming, sheets, sequences, validate); three older tests encoded the 0.1 behaviour and were updated. 218 pass.
+- **Cost** (time, peak memory; 0.1.2 against now): 4HHB 0.06 to 0.13-0.15 s for the tools that remove atoms;
+  6VXX 0.15 to 0.26-0.29 s; 1JJ2 0.75 to 1.3-1.5 s (+15 MB); 4V6X 1.6 to 2.3-3.2 s (up to +50 MB, 95 MB in all).
+  Renames take 10-25% longer. The first look reads the tables (0.4 s on 4V6X) and the atoms (0.5 s) once more;
+  0.1 read only `_struct_conn` there. Not measured on the 2.5-million-atom entries of the stress test, whose
+  files are outside this folder.
+- **Left as they were:** `mmcif_assembly`, `mmcif_merge`, `mmcif_mkensemble` (new chains), `--label`
+  renumbering, and alt ids in the tables (only `_struct_conn` and `_atom_site_anisotrop` follow `mmcif_selaltloc`'s
+  alt ids). Positions of `_entity_poly_seq` are judged by number, so of a position modelled as two residue types
+  (1EJG PRO/SER 22) both rows stay while one type has atoms.
