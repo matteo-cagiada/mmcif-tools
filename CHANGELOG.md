@@ -19,14 +19,19 @@ command names and options may still change.
     tools): rows naming removed atoms, residues, chains or molecules are removed, the sequences included; helices,
     strands and alignments that lose their ends are shortened; lists of chains are pruned; sheets, sites,
     assemblies, sequence alignments and coordination spheres left without parts are removed; and
-    `_entity.pdbx_number_of_molecules` and the one-letter sequences are updated. Rows naming a removed model
-    (`mmcif_selmodel`, `mmcif_splitmodel`) or conformer (`mmcif_selaltloc`) go too, and those naming a kept
-    conformer lose its label, as the atoms do. Residues that had no atoms in the input stay, and so does a
+    `_entity.pdbx_number_of_molecules` and the one-letter sequences are updated (lines of up to 80 characters,
+    broken between residues). Rows naming a removed model (`mmcif_selmodel`, `mmcif_splitmodel`) or conformer
+    (`mmcif_selaltloc`) go too, and those naming a kept conformer lose its label, as the atoms do. Residues that had no atoms in the input stay, and so does a
     position of `_entity_poly_seq` that a kept chain lists without atoms. Atoms listed as never observed
     (`_pdbx_unobs_or_zero_occ_atoms`) go with their residue. Sequence alignments that name no chain
     (`_struct_ref_seq` in integrative models) follow the molecule's sequence. A molecule whose list of chains
     (`_entity_poly.pdbx_strand_id`) misses some of its copies keeps its row when only those are kept, and the
-    list then names them.
+    list then names them. A residue deleted from the construct (`_struct_ref_seq_dif`, with no number) names
+    only its chain, not the chain's waters. A row of a model (validation reports, cis peptides, base pairs)
+    follows the residues of that model, as `mmcif_delres` and `mmcif_selres` with a step remove other residues
+    in each model. Rows that name residues by their author ids only, with `?` label ids (TLS groups), follow
+    and are shortened by those ids. A modification (`_pdbx_modification_feature`) goes with the atom of its bond
+    (a disulfide's SG, a sugar's C1).
   - **Cost:** one more reading of the file. The tools that remove atoms take about twice as long (4HHB: 0.06 to
     0.15 s; a 238,000-atom ribosome, 4V6X: 1.6 to 2.3-3.2 s, with up to 50 MB more memory); renames take 10-25%
     longer.
@@ -34,7 +39,10 @@ command names and options may still change.
     output on the 12 test entries has no error its input does not have, except when no polymer is left, where
     gemmi reports the empty `_entity_poly_seq`, and `mmcif_keepcoord`, which keeps only the coordinates. The
     stress test (300 entries and variants, about 60 commands each) was run again with the check; what it found
-    is fixed. Files with two data blocks: only the first one's tables follow.
+    is fixed. Files with two data blocks: only the first one's tables follow. Also checked: that no row is
+    removed without a reason (each row of the input is tagged, and each one removed must name something with no
+    atoms left), and tools run one after another: in either order, twice, a rename and its inverse, and
+    through shell pipes.
 - **`mmcif_validate`** warns about metadata out of step with the atoms, including rows of models with no atoms.
 - **`mmcif_element`** adds a row to `_atom_type` for an element new to the file.
 - **`mmcif_label2auth`**: an unobserved residue whose author number is also a water's or ligand's in the same

@@ -44,7 +44,7 @@ ATOM_COLUMNS = {
     'label_asym': 'label_asym_id', 'label_seq': 'label_seq_id', 'label_comp': 'label_comp_id',
     'label_atom': 'label_atom_id', 'auth_asym': 'auth_asym_id', 'auth_seq': 'auth_seq_id',
     'auth_comp': 'auth_comp_id', 'auth_atom': 'auth_atom_id', 'icode': 'pdbx_PDB_ins_code',
-    'alt': 'label_alt_id',
+    'model': 'pdbx_PDB_model_num', 'alt': 'label_alt_id',
 }
 ROLES = tuple(ATOM_COLUMNS)
 RESIDUE_ROLES = ('label_asym', 'label_seq', 'label_comp', 'auth_asym', 'auth_seq', 'auth_comp', 'icode')
@@ -55,9 +55,9 @@ AUTHOR_RESIDUE = ('auth_asym', 'auth_seq', 'icode')
 # Roles whose null value is a value: no label number (a ligand or water), no insertion code.
 NULL_IS_VALUE = ('label_seq', 'icode')
 NULLS = ('.', '?')
-# The model number of a row (validation reports, unobserved residues and atoms), and of an atom.
-# The model number of a table's row (the first of these it has), and of an atom.
-MODELS, ATOM_MODEL = ('PDB_model_num', 'pdbx_PDB_model_num', 'model_number'), 'pdbx_PDB_model_num'
+# The model number of a table's row (the first of these it has: validation reports, unobserved residues and atoms,
+# cis peptides, base pairs), and of an atom. A residue or atom such a row names is the one of that model.
+MODELS, ATOM_MODEL = ('PDB_model_num', 'pdbx_PDB_model_num', 'model_number'), ATOM_COLUMNS['model']
 
 
 def _norm(value):
@@ -98,13 +98,17 @@ class Table:
         self.absent = absent
 
 
-def _ids(name, prefix='', suffix='', icode=None, alt=None, label=True, auth=True, atom=True, part=None):
-    """A group whose columns follow _atom_site: prefix + 'label_asym_id' + suffix, ..."""
+def _ids(name, prefix='', suffix='', icode=None, alt=None, label=True, auth=True, atom=True, part=None,
+         linking=None):
+    """A group whose columns follow _atom_site: prefix + 'label_asym_id' + suffix, ...
+    `linking`: a column naming an atom of the residue (by its label name)."""
     roles = (['label_asym', 'label_seq', 'label_comp'] if label else []) + \
         (['auth_asym', 'auth_seq', 'auth_comp'] if auth else [])
     if atom:
         roles += (['label_atom'] if label else []) + (['auth_atom'] if auth else [])
     columns = {role: prefix + ATOM_COLUMNS[role] + suffix for role in roles}
+    if linking:
+        columns['label_atom'] = linking
     if icode:
         columns['icode'] = icode
     if alt:
@@ -150,9 +154,11 @@ def _tables():
     add('_pdbx_coordinate_model', Group('chain', {'label_asym': 'asym_id'}))
     # Modified residues, features, coordination, symmetry
     add('_pdbx_struct_mod_residue', _ids('residue', icode='PDB_ins_code', atom=False))
-    add('_pdbx_modification_feature', _ids('residue', icode='PDB_ins_code', alt='label_alt_id', atom=False),
+    # (a bond's atom of each residue, when it has one: a disulfide's SG, a sugar's C1 and the asparagine's ND2)
+    add('_pdbx_modification_feature',
+        _ids('residue', icode='PDB_ins_code', alt='label_alt_id', atom=False, linking='comp_id_linking_atom'),
         _ids('modified residue', 'modified_residue_', icode='modified_residue_PDB_ins_code',
-             alt='modified_residue_label_alt_id', atom=False))
+             alt='modified_residue_label_alt_id', atom=False, linking='modified_residue_id_linking_atom'))
     for category in ('_pdbx_nonpoly_atom_coordination', '_pdbx_nonpoly_atom_coordination_sphere',
                      '_pdbx_nonpoly_atom_coordination_sphere_order'):
         add(category, _ids('atom', icode='PDB_ins_code', alt='label_alt_id'))
@@ -233,20 +239,39 @@ class Bound:
                 if role != 'alt':
                     self.roles.append(role)
                     self.positions.append(present[0])
-        self._read = [(role, pos, role in NULL_IS_VALUE) for role, pos in zip(self.roles, self.positions)]
+        model = next((c for c in MODELS if c in loop), None)
+        if model is not None and any(role not in CHAIN_ROLES for role in self.roles):
+            self.roles.append('model')  # a residue or atom of the row's model (compared, never renamed)
+            self.positions.append(loop.index(model))
+        self._read = [(role, pos, role in NULL_IS_VALUE, role in CHAIN_ROLES or role == 'model')
+                      for role, pos in zip(self.roles, self.positions)]
 
     def named(self, values):
-        """{role: value} of what the row names here (empty roles left out)."""
+        """{role: value} of what the row names here (empty roles left out).
+        A chain with nothing else but nulls is only that chain (not its
+        waters, whose label number is null too): a residue deleted from the
+        construct in _struct_ref_seq_dif. A null label number is one (a
+        water's or ligand's) only beside a label chain: a row with author ids
+        only and '?' label ids (_pdbx_refine_tls_group) names its residue by
+        the author ids."""
         out = {}
-        for role, pos, null_is_value in self._read:
+        residue = False
+        for role, pos, null_is_value, chain in self._read:
             value = values[pos]
             if value in NULLS:
                 if not null_is_value:
                     continue
                 value = ''
+            elif not chain:
+                residue = True
             out[role] = value
-        if 'label_asym' not in out and 'auth_asym' not in out:  # CHAIN_ROLES
-            return {}
+        if 'label_asym' not in out:
+            if 'auth_asym' not in out:  # CHAIN_ROLES
+                return {}
+            if out.get('label_seq') == '':
+                del out['label_seq']
+        if not residue and len(out) > 1:
+            return {role: value for role, value in out.items() if role in CHAIN_ROLES}
         return out
 
     def comp(self, values):
@@ -454,17 +479,23 @@ def problems(source, before=None):
     return out
 
 
-def _references(source):
-    """(named, table, bound group, row) for each group of each row of the listed tables."""
-    for ev in _cif.parse(source.lines(), CATEGORIES):
+def _references(source, sequence=None):
+    """(named, table, bound group, row) for each group of each row of the
+    listed tables. With a set `sequence`, the (entity, number) of each row of
+    _entity_poly_seq are added to it."""
+    categories = CATEGORIES if sequence is None else CATEGORIES + ('_entity_poly_seq',)
+    for ev in _cif.parse(source.lines(), categories):
         if type(ev) is _cif.Row:
+            if table is None:
+                sequence.add((ev.get('entity_id'), _int(ev.get('num'))))
+                continue
             for b in bound:
                 named = b.named(ev.values)
                 if named:
                     yield named, table, b, ev
         elif type(ev) is _cif.Loop:
-            table = TABLES[ev.category.lower()]
-            bound = bind(ev)
+            table = TABLES.get(ev.category.lower())
+            bound = bind(ev) if table is not None else ()
 
 
 def _getter(positions):
@@ -587,18 +618,25 @@ class Removal:
             if type(ev) is _cif.Loop:
                 self.have = atom_roles(ev)
                 break
-        wanted, ranged = {}, set()
+        wanted, ranged, listed, sequence = {}, set(), None, set()
         if self.have is not None:
-            for named, table, bound, row in _references(source):
+            for named, table, bound, row in _references(source, sequence):
+                if table.category == '_pdbx_poly_seq_scheme':  # the positions each label chain lists
+                    if listed is None:
+                        listed = {}
+                    chain, number = _norm(named.get('label_asym', '')), _int(named.get('label_seq'))
+                    listed.setdefault((row.get('entity_id'), number), set()).add(chain)
                 shape = _shape(named, self.have)
                 if shape is not None:
                     for compared in _compared(shape, table, row):
                         wanted.setdefault(compared, set()).add(_key(named, compared))
                     if bound.group.part:
                         ranged.add(_chain_of(named))
-        self._look(make_owner, wanted, ranged)
+        # the positions of _entity_poly_seq (None: no such table), the only ones a position without atoms can be
+        self.sequence = sequence or None
+        self._look(make_owner, wanted, ranged, listed)
 
-    def _look(self, make_owner, wanted, ranged):
+    def _look(self, make_owner, wanted, ranged, listed):
         """The first look at the atoms: the owners of what the tables name."""
         sets = {}
 
@@ -702,16 +740,25 @@ class Removal:
                     by_key = owned[shape]
                     by_key[key] = add(by_key.get(key), owner)
         # A chain with no atoms at a position (unobserved there) keeps it while the chain is kept: its row
-        # of _pdbx_poly_seq_scheme stays.
+        # of _pdbx_poly_seq_scheme stays. Only a position the chain's scheme lists: one an earlier edit
+        # removed from the chain is not unobserved. A position with no atoms in any chain is kept by the
+        # chains that list it.
         label_chains = chains['label_asym']
         for key, here in seen.items():
             molecule = molecules[key[0]][None]
             if len(here) == len(molecule):
                 continue
             for chain in molecule - here:
+                if listed is not None and _norm(chain) not in listed.get(key, ()):
+                    continue
                 owners = label_chains.get(_norm(chain))
                 if owners and key in positions:
                     merged = positions[key] | owners
+                    positions[key] = sets.setdefault(merged, merged)
+        for key, listing in (listed or {}).items():
+            if key not in seen and key[0] in molecules:
+                merged = frozenset().union(*(label_chains.get(chain, ()) for chain in listing))
+                if merged:
                     positions[key] = sets.setdefault(merged, merged)
         self.owned, self.chains, self.entities, self.positions = owned, chains, entities, positions
         self.molecules, self.strands, self.waters, self.residues = molecules, strands, waters, residues
@@ -855,6 +902,17 @@ class View:
                                      for n in sorted(by_number) if any(o == self.owner for o, _ in by_number[n])]
         return self._residues[chain]
 
+    def _label_number(self, chain, named):
+        """The label number of the residue of a chain named by a range end's
+        author number (and insertion code), or None."""
+        by_author = self._residues.get(('author', chain))
+        if by_author is None:
+            by_author = self._residues[('author', chain)] = {}
+            for number, entries in self.removal.residues.get(chain, {}).items():
+                for _, ids in entries:
+                    by_author.setdefault((_norm(ids.get('auth_seq', '')), _norm(ids.get('icode', ''))), number)
+        return by_author.get((named.get('auth_seq', ''), named.get('icode', '')))
+
     def _positions(self, ev, category, columns, decide_only):
         """A row of an alignment that names no chain: False if none of its
         positions of the molecule is left, else its range is moved to the
@@ -865,11 +923,14 @@ class View:
         numbers = [_int(ev.get(c)) for c in columns]
         if entity is None or None in numbers:
             return True
-        positions = self.removal.positions
+        positions, sequence = self.removal.positions, self.removal.sequence
         if len(numbers) == 1:
             return not self._gone(positions.get((entity, numbers[0])))
         beg, end = numbers
-        kept = [n for n in range(beg, end + 1) if not self._gone(positions.get((entity, n)))]
+        # inside a range, a position without atoms is left while the sequence lists it (unobserved there), not
+        # when an earlier edit removed it
+        kept = [n for n in range(beg, end + 1) if not self._gone(positions.get((entity, n))) and (
+            sequence is None or (entity, n) in positions or (entity, n) in sequence)]
         if not kept:
             return False
         if not decide_only:
@@ -888,10 +949,13 @@ class View:
         if 'beg' not in ends or 'end' not in ends:
             return False
         (b_bound, b_named, b_removed), (e_bound, e_named, e_removed) = ends['beg'], ends['end']
+        chain = _chain_of(b_named)
         beg, end = _int(b_named.get('label_seq')), _int(e_named.get('label_seq'))
-        if beg is None or end is None:
-            return False
-        inside = [(n, ids) for n, ids in self._kept_residues(_chain_of(b_named)) if beg <= n <= end]
+        if beg is None or end is None:  # author ids only: the label numbers of those residues
+            beg, end = self._label_number(chain, b_named), self._label_number(chain, e_named)
+            if beg is None or end is None:
+                return False
+        inside = [(n, ids) for n, ids in self._kept_residues(chain) if beg <= n <= end]
         if not inside:
             return False
         new = {}
@@ -940,12 +1004,18 @@ class View:
             value = ev.get(column)
             if value is None or value in NULLS:
                 continue
-            letters = re.findall(r'\([^)]*\)|[^\s()]', value)
+            letters = [re.sub(r'\s+', '', l) for l in re.findall(r'\([^)]*\)|[^\s()]', value)]
             if len(letters) != len(numbers):
                 continue  # not one letter per position: left as it is
             positions = self.removal.positions
-            kept = ''.join(l for l, n in zip(letters, numbers) if not self._gone(positions.get((entity, n))))
-            ev[column] = '\n'.join(kept[i:i + 80] for i in range(0, len(kept), 80)) or '?'
+            lines, line = [], ''
+            for letter, n in zip(letters, numbers):
+                if not self._gone(positions.get((entity, n))):
+                    if line and len(line) + len(letter) > 80:  # lines of up to 80, broken between residues
+                        lines.append(line)
+                        line = ''
+                    line += letter
+            ev[column] = '\n'.join(lines + [line] if line else lines) or '?'
 
 
 def _parents(removal, views):
