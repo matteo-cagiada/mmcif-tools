@@ -471,9 +471,10 @@ lose their altloc label ('.'); occupancies are not changed.
 
 The choice is made per residue, so a residue modelled as two different
 residue types (e.g. SER/THR) is never mixed. Atoms keep their order, and
-rows of _atom_site_anisotrop of removed atoms are removed too. Links
-(_struct_conn) to a removed conformer are removed, and links to a kept one
-lose their altloc label, as the atom does. The other tables follow as with
+rows of _atom_site_anisotrop of removed atoms are removed too. Rows of the
+other tables that name a removed conformer (links in _struct_conn,
+validation reports, ...) are removed, and those that name a kept one lose
+their altloc label, as the atom does. The other tables also follow as with
 mmcif_selatom: rows naming atoms or residues that are gone are removed. A
 file without a label_alt_id column has no alternate locations and is
 written unchanged.
@@ -498,9 +499,9 @@ Extracts one or more models from an mmCIF file.
 Models are read from _atom_site.pdbx_PDB_model_num. As in pdb_selmodel, a
 file with a single model (or without model numbers) is returned whole,
 whatever model is asked for. Rows of the other tables that name removed
-atoms, residues or chains are removed too (_atom_site_anisotrop,
-_struct_conn, _pdbx_poly_seq_scheme, ...), and ranges such as helices are
-shortened.
+models, atoms, residues or chains are removed too (_atom_site_anisotrop,
+_struct_conn, the validation reports of each model, ...), and ranges such
+as helices are shortened.
 
 Usage:
     mmcif_selmodel -<model id>[,<model id>...] <cif file>
@@ -552,17 +553,21 @@ keeps:
 
     _atom_site                 the atoms
     _atom_site_anisotrop       their anisotropic B-factors
-    _struct_conn               the links (disulfides, metal sites, ...)
+    _struct_conn,              the links (disulfides, metal sites, ...)
+    _struct_conn_type          and their types
     _entry                     the entry id
     _cell, _symmetry           the unit cell and space group
-    _exptl, _refine, _reflns,  the method and resolution
-    _em_3d_reconstruction
+    _exptl, _refine, _reflns,  the method and resolution (with the EM
+    _em_3d_reconstruction      tables it refers to: _em_image_processing,
+                               _em_image_recording, _em_imaging,
+                               _em_specimen, _em_experiment)
     _pdbx_audit_revision_history  the release and revision dates
     _entity, _entity_poly,     the molecules, their sequences, and the
     _entity_poly_seq,          ligands
     _pdbx_entity_nonpoly
     _struct_asym               the chains (label_asym_id) of each molecule
     _pdbx_poly_seq_scheme      the residues of each chain along its sequence
+    _pdbx_nonpoly_scheme       the chains and numbers of the ligands
     _pdbx_struct_mod_residue   the modified residues
     _chem_comp, _chem_comp_atom,  the chemical components, their atoms and
     _chem_comp_bond, _atom_type   bonds, and the elements
@@ -832,10 +837,12 @@ and programs differ in which one they read, so both auth_comp_id and
 label_comp_id are changed (whatever --auth/--label says), together with the
 residue names of the other tables that name residues (_struct_conn,
 _pdbx_poly_seq_scheme, _struct_conf, ...) and of the sequences
-(_entity_poly_seq, _pdbx_entity_nonpoly). The definitions of the residues
-(_chem_comp, _chem_comp_atom, ...) are not changed: they describe the old
-residue. Names are matched exactly (case-sensitive) and may be longer than
-three characters.
+(_entity_poly_seq, _pdbx_entity_nonpoly), and of the definitions of the
+residues (_chem_comp, _chem_comp_atom, ...): the atoms keep their
+definition under the new name. If the new name is already defined, the
+old name's definition is removed instead (the new name keeps its own).
+Names are matched exactly (case-sensitive) and may be longer than three
+characters.
 
 Usage:
     mmcif_rplresname -<from>:<to> <cif file>
@@ -897,7 +904,8 @@ alpha carbon, from 'CA  ', calcium, by it), so the rules are:
        hydrogen names, e.g. the heme nitrogens NA-ND)
     4. otherwise the first letter of the name, after leading digits
 Atom names are auth_atom_id (label_atom_id with --label). Atoms for which no
-element can be found get '?', and a warning is printed.
+element can be found get '?', and a warning is printed. An element new to the
+file gets a row in _atom_type, the table that lists the elements.
 
 Usage:
     mmcif_element [-all] <cif file>
@@ -1067,9 +1075,9 @@ reading stdin), named by the model numbers as written, and prints nothing.
 Unlike pdb_splitmodel, which writes nothing for a file without MODEL
 records, a single-model file gives one file; and each file is a complete
 mmCIF file: the metadata categories are kept, the data block is renamed
-<block>_<model>, and rows of the other tables that name removed atoms,
-residues or chains are removed (_atom_site_anisotrop, _struct_conn,
-_pdbx_poly_seq_scheme, ...).
+<block>_<model>, and rows of the other tables that name removed models,
+atoms, residues or chains are removed (_atom_site_anisotrop, _struct_conn,
+the validation reports of the other models, ...).
 
 Usage:
     mmcif_splitmodel <cif file>

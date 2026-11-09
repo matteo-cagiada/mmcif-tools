@@ -21,9 +21,9 @@ Extracts one or more models from an mmCIF file.
 Models are read from _atom_site.pdbx_PDB_model_num. As in pdb_selmodel, a
 file with a single model (or without model numbers) is returned whole,
 whatever model is asked for. Rows of the other tables that name removed
-atoms, residues or chains are removed too (_atom_site_anisotrop,
-_struct_conn, _pdbx_poly_seq_scheme, ...), and ranges such as helices are
-shortened.
+models, atoms, residues or chains are removed too (_atom_site_anisotrop,
+_struct_conn, the validation reports of each model, ...), and ranges such
+as helices are shortened.
 
 Usage:
     mmcif_selmodel -<model id>[,<model id>...] <cif file>

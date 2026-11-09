@@ -328,17 +328,19 @@ seq_id	mon_id	pdb_seq_num	auth_seq_num
 2	LEU	102	102
 ```
 
-- **Renaming** a chain, a residue number, a residue or an atom renames it in every table. After `mmcif_reres`,
-  residues without atoms (unobserved ones) get `?`: their old number may now be another residue's.
+- **Renaming** a chain, a residue number, a residue or an atom renames it in every table, and a renamed residue
+  keeps its definition (`_chem_comp`) under the new name. After `mmcif_reres`, residues without atoms (unobserved
+  ones) get `?`: their old number may now be another residue's.
 - **Removing** atoms removes the rows that name them. A residue, a chain or a molecule goes from every table when
   none of its atoms is left, the sequences included; a helix or strand that loses its ends is shortened (after
   `mmcif_delres -1:5`, the first helix of 4HHB starts at residue 6); the lists of chains (assemblies, the chains of
-  each molecule) and the counts follow. Residues that had no atoms in the first place stay.
+  each molecule) and the counts follow. Rows of removed models (`mmcif_selmodel`) and conformers
+  (`mmcif_selaltloc`) go too. Residues that had no atoms in the first place stay.
 - **Checking:** `mmcif_validate` warns about rows out of step with the atoms, e.g. in a file edited by another
   program.
 
 `mmcif_assembly`, `mmcif_merge` and `mmcif_mkensemble` make new chains; the metadata keeps describing the chains of
-the first file. Prediction and simulation programs read few of these tables: [`mmcif_delmeta`](#mmcif_delmeta)
+the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables: [`mmcif_delmeta`](#mmcif_delmeta)
 deletes the others.
 
 ### Entities

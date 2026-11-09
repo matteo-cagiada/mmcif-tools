@@ -26,9 +26,10 @@ lose their altloc label ('.'); occupancies are not changed.
 
 The choice is made per residue, so a residue modelled as two different
 residue types (e.g. SER/THR) is never mixed. Atoms keep their order, and
-rows of _atom_site_anisotrop of removed atoms are removed too. Links
-(_struct_conn) to a removed conformer are removed, and links to a kept one
-lose their altloc label, as the atom does. The other tables follow as with
+rows of _atom_site_anisotrop of removed atoms are removed too. Rows of the
+other tables that name a removed conformer (links in _struct_conn,
+validation reports, ...) are removed, and those that name a kept one lose
+their altloc label, as the atom does. The other tables also follow as with
 mmcif_selatom: rows naming atoms or residues that are gone are removed. A
 file without a label_alt_id column has no alternate locations and is
 written unchanged.
@@ -134,10 +135,12 @@ def run(fhandle, altloc=None, scheme=None):
     fates, partners = {}, None
     if links is not None:
         fates, partners = _link_fates(source, links[0], links[1], altloc, scheme)
-    removed = _removed(source, altloc, scheme)
+    alt_ids = _refs.AltIds(source)
+    removed = _removed(source, altloc, scheme, alt_ids)
     view = _refs.Removal(source, _owner(removed)).view(True) if removed else None
     active = view is not None and view.active
-    categories = (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN) + (view.categories if active else ())
+    categories = ((_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN) + (view.categories if active else ()) +
+                  (alt_ids.categories if alt_ids.fates else ()))
     for ev in _select(_cif.parse(source.lines(), categories), altloc, scheme):
         if type(ev) is _cif.Row:
             category = ev.loop.category.lower()
@@ -149,19 +152,27 @@ def run(fhandle, altloc=None, scheme=None):
                 for alt, fate in zip(LINK_ALTS, kept):
                     if fate:
                         ev[alt] = '.'
-            elif active and category not in (_atoms.ATOM_SITE, _atoms.ANISOTROP) and not view.row(ev):
-                continue
+            elif category not in (_atoms.ATOM_SITE, _atoms.ANISOTROP):
+                if not alt_ids.follow(ev):
+                    continue  # it names a removed conformer
+                if active and not view.row(ev):
+                    continue
         yield ev
 
 
-def _removed(source, altloc, scheme):
-    """The values of the atoms the selection removes."""
+def _removed(source, altloc, scheme, alt_ids):
+    """The values of the atoms the selection removes (and, in alt_ids, the
+    fate of each alternate location the other tables name)."""
     removed = set()
 
     def make_record(loop):
+        others = alt_ids.recorder(loop) if alt_ids.wanted else None
+
         def record(values, loc, kept):
             if kept is False:
                 removed.add(values)
+            if others is not None:
+                others(values, loc, kept)
         return record
     for _ in _select(_cif.parse(source.lines(), _atoms.ATOM_SITE), altloc, scheme, make_record):
         pass

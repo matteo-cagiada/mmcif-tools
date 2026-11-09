@@ -96,11 +96,11 @@ def _new_ids(loop, chains, residues):
 
 def residue_map(source, chains, residues):
     """({old (chain, number, insertion code): new one}, {old chain: new chain
-    of its polymer}, {entity: new chains}), after checking that no two
-    residues get the same new identifiers. Old (chain, number) pairs are
-    keys too, for rows without an insertion code column (None when two
-    residues share them)."""
-    mapping, owner, polymers, strands = {}, {}, {}, {}
+    of its polymer}, {entity: new chains}, {old ids: label chain}), after
+    checking that no two residues get the same new identifiers. Old (chain,
+    number) pairs are keys too, for rows without an insertion code column
+    (None when two residues share them)."""
+    mapping, owner, polymers, strands, labels = {}, {}, {}, {}, {}
     for ev in _cif.parse(source.lines(), _atoms.ATOM_SITE):
         if type(ev) is _cif.Row:
             values = ev.values
@@ -110,6 +110,9 @@ def residue_map(source, chains, residues):
                 mapping[key] = new
                 short = old[:2]
                 mapping[short] = new if short not in mapping else None
+                if label_chain is not None:
+                    labels[key] = values[label_chain]
+                    labels[short] = values[label_chain] if short not in labels else None
                 if label_seq is not None and _atoms.as_int(values[label_seq]) is not None:
                     polymers.setdefault(old[0], new[0])
                 if entity is not None:
@@ -131,10 +134,10 @@ def residue_map(source, chains, residues):
             label_chain = ev.index('label_asym_id') if 'label_asym_id' in ev else None
             label_seq = ev.index('label_seq_id') if 'label_seq_id' in ev else None
             entity = ev.index('label_entity_id') if 'label_entity_id' in ev else None
-    return mapping, polymers, strands
+    return mapping, polymers, strands, labels
 
 
-def _follow(row, values, bound, mapping, polymers, chains, residues):
+def _follow(row, values, bound, mapping, polymers, chains, residues, labels):
     """Give the residue a row names (a group of _refs) its new author ids;
     a residue without atoms gets them from its label ids. `values` are the
     row's values as read (groups may share a column)."""
@@ -146,10 +149,13 @@ def _follow(row, values, bound, mapping, polymers, chains, residues):
     old = (first('auth_asym'), first('auth_seq'), first('icode'))
     if old[0] is None and old[1] is None:
         return
-    new = mapping.get((old[0], old[1], _icode(old[2])) if 'icode' in roles else old[:2])
+    key = (old[0], old[1], _icode(old[2])) if 'icode' in roles else old[:2]
+    new = mapping.get(key)
+    label = first('label_asym')
+    if new is not None and label not in (None, '.', '?') and labels.get(key, label) not in (None, label):
+        new = None  # those author ids are another molecule's (a water of the chain): this residue has no atoms
     if new is None:
         chain, number, icode = old
-        label = first('label_asym')
         if chains:
             chain = label if label is not None and label not in NULLS else polymers.get(chain, chain)
         seq = first('label_seq')
@@ -173,7 +179,7 @@ def _name(ids):
 def run(fhandle, chains=True, residues=True, scheme=None):
     """Yield the events of the file with label identifiers copied."""
     source = _atoms.as_source(fhandle)
-    mapping, polymers, strands = residue_map(source, chains, residues)
+    mapping, polymers, strands, labels = residue_map(source, chains, residues)
     kind = None
     for ev in _cif.parse(source.lines(), (_atoms.ATOM_SITE,) + _refs.CATEGORIES):
         etype = type(ev)
@@ -188,7 +194,7 @@ def run(fhandle, chains=True, residues=True, scheme=None):
             elif kind is not None:
                 values = ev.values
                 for bound in refs:
-                    _follow(ev, values, bound, mapping, polymers, chains, residues)
+                    _follow(ev, values, bound, mapping, polymers, chains, residues, labels)
                 if kind == '_entity_poly' and chains and 'pdbx_strand_id' in ev:
                     new = strands.get(ev.get('entity_id'))
                     if new and ev['pdbx_strand_id'] not in NULLS and ev['pdbx_strand_id'] != ','.join(new):

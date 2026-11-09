@@ -885,7 +885,7 @@ a chain, a residue or an atom (4V6X: 62,000 such rows for 238,000 atoms).
 
 **Done (2026-11-07, on `dev`):**
 
-- **`mmciftools/_refs.py`:** the list of 42 tables and their groups; the checker (`problems()`, also used by
+- **`mmciftools/_refs.py`:** the list of 50 tables and their groups; the checker (`problems()`, also used by
   `mmcif_validate`, as warnings); `Removal` / `View`, the removals; and the helpers for renames and names.
   `_atoms.filter_atoms` and `_atoms.rename` use it, and so do `mmcif_splitchain` (one view per chain, the chains
   as owners of one first look), `mmcif_selaltloc`, `mmcif_label2auth`, `mmcif_fixinsert`, `mmcif_rplresname` and
@@ -907,7 +907,82 @@ a chain, a residue or an atom (4V6X: 62,000 such rows for 238,000 atoms).
   Renames take 10-25% longer. The first look reads the tables (0.4 s on 4V6X) and the atoms (0.5 s) once more;
   0.1 read only `_struct_conn` there. Not measured on the 2.5-million-atom entries of the stress test, whose
   files are outside this folder.
-- **Left as they were:** `mmcif_assembly`, `mmcif_merge`, `mmcif_mkensemble` (new chains), `--label`
-  renumbering, and alt ids in the tables (only `_struct_conn` and `_atom_site_anisotrop` follow `mmcif_selaltloc`'s
-  alt ids). Positions of `_entity_poly_seq` are judged by number, so of a position modelled as two residue types
+- **Left as they were:** `mmcif_assembly`, `mmcif_merge`, `mmcif_mkensemble` (new chains) and `--label`
+  renumbering. Positions of `_entity_poly_seq` are judged by number, so of a position modelled as two residue types
   (1EJG PRO/SER 22) both rows stay while one type has atoms.
+- **Dictionary check (2026-11-07):** the PDBx/mmCIF dictionary 5.418 (`mmcif_pdbx_v50.dic`, downloaded into the
+  scratch folder, not the repository) and `gemmi validate -d ... -p` on the input and the 36 outputs of each of
+  the 12 entries; an output passes when it has no message its input does not have. It found what the checker
+  could not see, now fixed:
+  - `mmcif_selmodel` / `mmcif_splitmodel` left validation rows of the removed models (`PDB_model_num`): the
+    model is now part of what a row names, and `mmcif_validate` reports a row of a model with no atoms.
+  - `mmcif_selaltloc` left validation rows naming removed conformers: every table with alt ids now follows it as
+    `_struct_conn` did (`_refs.AltIds`).
+  - A molecule with no atoms left kept its `_struct_ref_seq` when the alignment's ends had no atoms, and
+    `_struct_ref_seq_dif` rows outlived their alignment: new cascades (`_struct_ref` → `_struct_ref_seq` →
+    `_struct_ref_seq_dif`), and a row naming a polymer residue of an author chain goes when the chain has no
+    polymer left. Cascades now also apply while deciding the parents (parents come first in a file).
+  - `_pdbx_nonpoly_atom_coordination_sphere_order` outlived its sphere: cascade added.
+  - `_pdbx_entity_instance_feature` names a kind of residue without a chain (6VXX: NAG): it goes when no residue
+    of that name is left.
+  - `mmcif_rplresname` left `_chem_comp` with the old name, so the atoms' residue had no definition: it renames the
+    definitions too, or removes the old one when the new name is already defined.
+  - `mmcif_delmeta` deleted tables the kept ones point to: it keeps `_struct_conn_type`, `_pdbx_nonpoly_scheme`
+    and the EM chain from `_em_image_processing` to `_em_experiment`.
+
+  Left: when no polymer is left (`mmcif_selhetatm`, `mmcif_delentity -polymer`, ...), `_atom_site.label_seq_id` is
+  all `.` and gemmi reports the absent `_entity_poly_seq` (no value points to it); and `mmcif_keepcoord` keeps only
+  the coordinates, as `pdb_keepcoord` does. Tests: 8 more in `tests/test_refs.py` (21), each failing on the code
+  before the fix.
+- **Stress test again (2026-11-07):** both rounds of the October stress test (200 entries, then 100 entries and
+  variants; folder `../mmcif-tools-stress`, outside the repository) on the code of f3e7b62 plus the fixes above,
+  with two more checks per output: gemmi's parent check against the input's (`check_with_gemmi.py --dict ...
+  --parents`), and `_refs.problems()` against the input's. No runner failure, no tool error. Each flagged entry
+  was rerun on the fixed code until only expected messages were left. Found and fixed:
+  - Tables nobody followed, found through the dictionary's item-linked groups: `_pdbx_distant_solvent_atoms`,
+    `_pdbx_sifts_xref_db`, `_pdbx_sifts_unp_segments`, `_pdbx_sifts_xref_db_segments` (PDBe's updated files),
+    `_refine_ls_restr_ncs`, `_struct_ncs_dom_lim`, `_pdbx_coordinate_model`, and of ModelCIF
+    `_ma_template_details` (with its children by `template_id`) and `_ma_target_ref_db_details`: 50 tables now.
+  - Model numbers are also read from `pdbx_PDB_model_num` (`_struct_mon_prot_cis`) and `model_number`
+    (`_ndb_struct_na_base_pair*`).
+  - 1R6Z `mmcif_selchain -P`: positions 501-502 of `_entity_poly_seq` went (no kept chain had atoms there) while
+    chain P's unobserved rows of `_pdbx_poly_seq_scheme` stayed. A kept chain without atoms at a position now
+    keeps it.
+  - 2RH1 `mmcif_delres`: rows of `_pdbx_unobs_or_zero_occ_atoms` (atoms never in `_atom_site`) outlived their
+    residue; they now follow it (`Table.absent`: rows flagged unobserved are looked up by residue only, which also
+    saves the per-atom work: 8TO0 has 660,000 of them). The checker sees it too.
+  - 9A0K (integrative models): `_struct_ref_seq` and `_struct_ref_seq_dif` without chain columns name positions
+    of the molecule: they now follow `_entity_poly_seq` (CHAINLESS), through `_struct_ref.entity_id`.
+  - 9A0K `mmcif_splitchain` (found by the final run): `_entity_poly.pdbx_strand_id` lists `V` but not `v`, the
+    other copy of the molecule, so chain v's file lost its `_entity_poly` row while keeping `_entity_poly_seq`.
+    A list of a kept molecule that would be emptied now lists the molecule's kept author chains.
+  - 8PJO `mmcif_label2auth`: an unobserved residue whose author number was also a water's of the same author
+    chain got the water's chain in `_pdbx_poly_seq_scheme`; an author match now counts only within the row's
+    label chain.
+  - 3DIO `mmcif_uniqname`: conformers of one atom get different names (as in `pdb_uniqname`); a row naming
+    conformer A got B's. The new names are now looked up by alt id too.
+  - 2C4S `mmcif_element -all`: new elements (from the name rules) were not in `_atom_type`: rows are added.
+  - A child row is kept when another parent row with its key is kept (CHILDREN keys need not be unique).
+  - `mmcif_validate` was quadratic on water-rich files (the waters of a chain share their label ids): 7OW7 20 s
+    to 3 s.
+
+  Expected, left: outputs with no polymer (gemmi reports the absent `_entity_poly_seq`); `mmcif_keepcoord`,
+  `mmcif_keepcat`, `mmcif_frompdb`, `mmcif_mkensemble` (atoms only); `mmcif_merge`, `mmcif_assembly`,
+  `mmcif_reres --label` (out of scope); residue-level rows (`_struct_mon_prot_cis`, `_pdbx_modification_feature`,
+  `_pdbx_validate_torsion`) whose residue keeps only conformers A/B after `mmcif_selatom`, which gemmi's keys
+  (with the alt id) do not match; variants whose input is out of step already (author numbers shifted in
+  `_atom_site` only) or lacks the label or author columns; and files with two data blocks, where only the first
+  block's tables follow (`mmcif_head` leaves the second block without atoms).
+
+  Final run (both rounds again on the final code, 61 and 38 minutes with 5 workers): the unit suite passed (238
+  tests); against the first run, 282 and 234 checks went from failing to passing and none the other way; what is
+  left is the list above, plus the 9A0K strand list, fixed afterwards (the affected systems were rerun).
+
+  Time (final run against October): the tools that remove atoms 1.48x in all in round 1 (median 1.44x per run)
+  and 1.60x in round 2 (median 1.56x); the others 0.87x and 0.97x, so the machine was less loaded than in October
+  (the first run, under more load, gave 1.69x and 1.00x). `mmcif_validate` 1.8-2.0x (more tables to check).
+  7Y7A (2.5 million atoms) 1,006 s against 903 s for all its commands. 8TO0 430 s against 253 s, because of its
+  660,000 rows of unobserved atoms (510 s before they were looked up by residue). Peak memory: 7Y7A 2.1 GB
+  against 1.8 GB, both from `mmcif_assembly`, which varies by about 150 MB between runs (7EZX: 1.15, 0.91,
+  1.05 GB); `mmcif_splitchain` on 7Y7A now peaks at 1.1 GB (October: 53 MB), the record of its 1,792 chains'
+  rows.

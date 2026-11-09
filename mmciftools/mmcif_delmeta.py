@@ -27,17 +27,21 @@ keeps:
 
     _atom_site                 the atoms
     _atom_site_anisotrop       their anisotropic B-factors
-    _struct_conn               the links (disulfides, metal sites, ...)
+    _struct_conn,              the links (disulfides, metal sites, ...)
+    _struct_conn_type          and their types
     _entry                     the entry id
     _cell, _symmetry           the unit cell and space group
-    _exptl, _refine, _reflns,  the method and resolution
-    _em_3d_reconstruction
+    _exptl, _refine, _reflns,  the method and resolution (with the EM
+    _em_3d_reconstruction      tables it refers to: _em_image_processing,
+                               _em_image_recording, _em_imaging,
+                               _em_specimen, _em_experiment)
     _pdbx_audit_revision_history  the release and revision dates
     _entity, _entity_poly,     the molecules, their sequences, and the
     _entity_poly_seq,          ligands
     _pdbx_entity_nonpoly
     _struct_asym               the chains (label_asym_id) of each molecule
     _pdbx_poly_seq_scheme      the residues of each chain along its sequence
+    _pdbx_nonpoly_scheme       the chains and numbers of the ligands
     _pdbx_struct_mod_residue   the modified residues
     _chem_comp, _chem_comp_atom,  the chemical components, their atoms and
     _chem_comp_bond, _atom_type   bonds, and the elements
@@ -80,7 +84,8 @@ COORDINATES = (_atoms.ATOM_SITE, _atoms.ANISOTROP, _atoms.STRUCT_CONN)
 KEPT = ('_entry', '_cell', '_symmetry', '_exptl', '_refine', '_reflns', '_em_3d_reconstruction',
         '_pdbx_audit_revision_history', '_entity', '_entity_poly', '_entity_poly_seq', '_pdbx_entity_nonpoly',
         '_struct_asym', '_pdbx_struct_mod_residue', '_chem_comp', '_chem_comp_atom', '_chem_comp_bond',
-        '_atom_type')
+        '_atom_type', '_struct_conn_type', '_pdbx_nonpoly_scheme', '_em_image_processing', '_em_image_recording',
+        '_em_imaging', '_em_specimen', '_em_experiment')
 SCHEME = '_pdbx_poly_seq_scheme'  # rebuilt, not kept
 MOD_RESIDUE = '_pdbx_struct_mod_residue'
 COMPONENTS = ('_chem_comp_atom', '_chem_comp_bond')
@@ -311,6 +316,8 @@ def _keep(ev, info):
     category = ev.loop.category.lower()
     if category == '_struct_asym':
         return info.asyms is None or ev.get('id') in info.asyms  # else a chain with no atoms left
+    if category == '_pdbx_nonpoly_scheme':
+        return info.asyms is None or ev.get('asym_id') in info.asyms
     if category in COMPONENTS:
         return ev.get('comp_id') not in info.renamed
     if category == MOD_RESIDUE:

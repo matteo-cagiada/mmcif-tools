@@ -24,9 +24,9 @@ reading stdin), named by the model numbers as written, and prints nothing.
 Unlike pdb_splitmodel, which writes nothing for a file without MODEL
 records, a single-model file gives one file; and each file is a complete
 mmCIF file: the metadata categories are kept, the data block is renamed
-<block>_<model>, and rows of the other tables that name removed atoms,
-residues or chains are removed (_atom_site_anisotrop, _struct_conn,
-_pdbx_poly_seq_scheme, ...).
+<block>_<model>, and rows of the other tables that name removed models,
+atoms, residues or chains are removed (_atom_site_anisotrop, _struct_conn,
+the validation reports of the other models, ...).
 
 Usage:
     mmcif_splitmodel <cif file>
