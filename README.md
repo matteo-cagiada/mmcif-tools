@@ -67,7 +67,7 @@ The full `--help` text of every tool is in the [tool reference](https://matteo-c
 | | `mmcif_blocks` | List the data blocks, or extract some (`-ATP`) |
 | Inspect / format | `mmcif_info` | Title, method, resolution, organisms, entities, assemblies |
 | | `mmcif_wc` | Counts: models, chains, residues, atoms, … |
-| | `mmcif_tofasta` | Sequence in FASTA format (`-multi`, `-seqres`) |
+| | `mmcif_tofasta` | Sequence in FASTA format; one record per chain with `-multi,seqres` |
 | | `mmcif_gap` | Report chain breaks |
 | | `mmcif_sort` | Sort atoms by chain and residue |
 | | `mmcif_tidy` | Rewrite in a uniform, aligned layout |
@@ -90,6 +90,9 @@ mmcif_fetch 1stp | mmcif_assembly > 1stp_tetramer.cif
 # What an entry holds: method, resolution, organisms, entities, assemblies (and the pLDDT of AlphaFold models)
 mmcif_fetch 4hhb | mmcif_info
 mmcif_fetch AF-P69905-F1 | mmcif_info
+
+# The sequences, one FASTA record per chain (the deposited sequences: no ligands or waters)
+mmcif_tofasta -multi,seqres 4hhb.cif > 4hhb.fasta
 
 # A table of atoms for awk, R or pandas (tab-separated, one header line)
 mmcif_cat -_atom_site.auth_asym_id,auth_seq_id,label_comp_id,B_iso_or_equiv 4hhb.cif > atoms.tsv
@@ -141,6 +144,12 @@ PDBFixer).
   rewritten, and the other columns keep their alignment.
 - To remove ligands and waters, select by entity (`mmcif_delentity -non-polymer,water`) rather than by HETATM
   record: `mmcif_delhetatm` also removes modified residues inside chains (selenomethionine, modified nucleotides).
+- **For one FASTA record per chain, use `mmcif_tofasta -multi,seqres`.** By default `mmcif_tofasta` writes, as
+  `pdb_tofasta`, a single record for the whole file, read from the atoms with ligands and waters as `X`
+  (`>4HHB|ABCD`). `-multi` alone starts a record each time the chain changes in the file, so the ligands and waters
+  listed after the polymers give records of their own (12 for 4HHB). `-seqres` reads the deposited sequences of the
+  polymers instead, with the residues that have no atoms. For the residues with atoms only:
+  `mmcif_selentity -polymer 4hhb.cif | mmcif_tofasta -multi`.
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
 - After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.

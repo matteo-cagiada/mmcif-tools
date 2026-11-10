@@ -68,7 +68,7 @@ The full `--help` text of every tool is in the [tool reference](tools.md).
 | | `mmcif_blocks` | List the data blocks, or extract some (`-ATP`) |
 | Inspect / format | `mmcif_info` | Title, method, resolution, organisms, entities, assemblies |
 | | `mmcif_wc` | Counts: models, chains, residues, atoms, … |
-| | `mmcif_tofasta` | Sequence in FASTA format (`-multi`, `-seqres`) |
+| | `mmcif_tofasta` | Sequence in FASTA format; one record per chain with `-multi,seqres` |
 | | `mmcif_gap` | Report chain breaks |
 | | `mmcif_sort` | Sort atoms by chain and residue |
 | | `mmcif_tidy` | Rewrite in a uniform, aligned layout |
