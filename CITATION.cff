@@ -4,7 +4,7 @@ message: >-
   and the version you used whenever possible.
 title: "mmcif-tools: command-line tools for mmCIF files"
 type: software
-version: 0.2.0
+version: 0.2.1
 date-released: "2026-11-10"
 # The concept DOI: all versions, resolving to the latest one. Each version also has its own DOI on Zenodo.
 doi: 10.5281/zenodo.23966235

@@ -5,7 +5,7 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
-## Unreleased
+## 0.2.1 (2026-11-10): the assembly count follows the removals
 
 - **The assembly count follows the removals.** When an assembly loses polymer chains,
   `_pdbx_struct_assembly.oligomeric_count` becomes the number of polymer chains its lists still name (times their
