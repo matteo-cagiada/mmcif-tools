@@ -283,7 +283,7 @@ Decided for phase 4 (2026-10-24):
     integration, which archives only releases published after it was turned on; its metadata come from
     CITATION.cff), which gives the software its DOI: 10.5281/zenodo.23966235 for all versions (in CITATION.cff and
     the README's badge), 10.5281/zenodo.23966236 for 0.1.2. After each release, the README's BibTeX entry gets
-    the new version and its DOI from Zenodo.
+    the new version and its DOI from Zenodo. 0.2.0 (2026-11-10): the metadata follows the edits (§15, §16).
 18. **Python 3.9 stays while it costs nothing** (the code is stdlib only and macOS's own python3 is 3.9); CI
     also covers the newest versions, up to 3.15.
 19. **Four more mmCIF tools:** `mmcif_selentity` / `mmcif_delentity`, `mmcif_assembly`, `mmcif_info`.

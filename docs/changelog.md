@@ -5,7 +5,7 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
-## Unreleased
+## 0.2.0 (2026-11-10): metadata follows the edits
 
 - **The metadata follows the edits.** Every tool keeps the tables that name chains, residues or atoms in step with
   the atoms, not only `_atom_site_anisotrop` and `_struct_conn`: the sequence schemes, the secondary structure,
