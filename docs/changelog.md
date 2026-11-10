@@ -12,6 +12,9 @@ command names and options may still change.
   copies), and `oligomeric_details` the PDB's word for it (`monomeric`, ..., `eicosameric`, then `21-meric`, ...)
   when it was the word for the old count. In 0.2.0, `mmcif_selchain -A` on 4HHB left "4, tetrameric" for one chain.
   The surface areas of `_pdbx_struct_assembly_prop`, computed on the deposited assembly, are kept as they are.
+- **`mmcif_tofasta`: one record per chain with `-multi,seqres`.** Its help and the usage tips now say so, and
+  explain the default (as `pdb_tofasta`: one record for the whole file, read from the atoms, ligands and waters as
+  `X`) and `-multi` alone (a record at each change of chain: 12 for 4HHB). The tool itself is unchanged.
 - **`tools/smoke_test.py`** checks the installation of the Python that runs it: it runs the commands pip installed
   for that Python, not others found first on the PATH, and prints the version and where the commands are.
 - **In the browser:** pipelines no longer end with `mmcif_delmeta` by default. Since 0.2.0 the tools keep every

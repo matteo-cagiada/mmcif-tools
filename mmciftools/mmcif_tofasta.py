@@ -16,28 +16,40 @@
 # limitations under the License.
 
 """
-Extracts the residue sequence of an mmCIF file in FASTA format.
+Extracts the residue sequence of an mmCIF file in FASTA format. For one
+record per chain, use -multi,seqres.
 
 Canonical amino acids and nucleotides (RNA and DNA) are represented by their
 one-letter code while all others are represented by 'X'. As in pdb_tofasta,
-the sequence is read from the atoms of the first model, ligands and waters
-(HETATM) included, so pipe through mmcif_delhetatm to drop them.
+by default the sequence is read from the atoms of the first model, ligands
+and waters (HETATM) included, and all the chains go into a single record
+(>4HHB|ABCD: the four chains, then 227 X for the 4 hemes, the 2 phosphates
+and the 221 waters).
 
-The -multi option splits the different chains into different records in the
-FASTA file. The -seqres option reads the full deposited sequence from
-_pdbx_poly_seq_scheme instead, including residues without coordinates (from
-_entity_poly_seq when a file has no _pdbx_poly_seq_scheme, with the chains
-of _entity_poly.pdbx_strand_id, or of _struct_asym with --label). Where two
-residue types share a position (microheterogeneity), the first is used. The
-two can be combined: -multi,seqres.
+The -multi option splits the chains into different records. As in
+pdb_tofasta, a new record starts each time the chain changes in the file,
+so the ligands and waters listed after the polymers give records of their
+own, of X: 12 records for 4HHB (its 4 chains, then their ligands, then
+their waters).
+
+The -seqres option reads the full deposited sequence of the polymers from
+_pdbx_poly_seq_scheme instead: residues without coordinates are included,
+ligands and waters are not (from _entity_poly_seq when a file has no
+_pdbx_poly_seq_scheme, with the chains of _entity_poly.pdbx_strand_id, or of
+_struct_asym with --label). Where two residue types share a position
+(microheterogeneity), the first is used.
+
+The two together, -multi,seqres, give one record per polymer chain with its
+full sequence: 4 records for 4HHB. For the residues with atoms only, keep
+the polymers first: mmcif_selentity -polymer 4hhb.cif | mmcif_tofasta -multi
 
 Usage:
     mmcif_tofasta [-multi] [-seqres] <cif file>
 
 Example:
-    mmcif_tofasta 1abc.cif
-    mmcif_tofasta -multi 1abc.cif
-    mmcif_tofasta -multi,seqres 1abc.cif
+    mmcif_tofasta -multi,seqres 1abc.cif   # one record per polymer chain
+    mmcif_tofasta -multi 1abc.cif          # a record at each change of chain
+    mmcif_tofasta 1abc.cif                 # one record, as pdb_tofasta
 
 This program is part of the mmcif-tools suite.
 """
