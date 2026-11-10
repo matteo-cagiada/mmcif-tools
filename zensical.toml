@@ -26,6 +26,9 @@ nav = [
 ]
 
 [project.theme]
+# overrides/main.html adds a bar at the top of every page with a breadcrumb: the author's main page
+# (https://matteo-cagiada.github.io/), then the mmcif-tools page.
+custom_dir = "overrides"
 # No content.action.edit: the pages are generated, so they are edited in README.md.
 features = [
   "content.code.copy",
