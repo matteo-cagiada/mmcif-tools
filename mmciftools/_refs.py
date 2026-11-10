@@ -36,6 +36,7 @@ its role out (a group with no chain names nothing).
 
 import operator
 import re
+import sys
 
 from mmciftools import _cif
 
@@ -629,7 +630,9 @@ class Removal:
                 shape = _shape(named, self.have)
                 if shape is not None:
                     for compared in _compared(shape, table, row):
-                        wanted.setdefault(compared, set()).add(_key(named, compared))
+                        # each key once, with each of its values once (8TO0: 660,000 rows of unobserved atoms)
+                        key = tuple(map(sys.intern, _key(named, compared)))
+                        wanted.setdefault(compared, {}).setdefault(key, key)
                     if bound.group.part:
                         ranged.add(_chain_of(named))
         # the positions of _entity_poly_seq (None: no such table), the only ones a position without atoms can be
@@ -637,7 +640,9 @@ class Removal:
         self._look(make_owner, wanted, ranged, listed)
 
     def _look(self, make_owner, wanted, ranged, listed):
-        """The first look at the atoms: the owners of what the tables name."""
+        """The first look at the atoms: the owners of what the tables name.
+        `wanted`: shape -> {key: the same key}, whose keys are the ones kept
+        (not the atoms' equal ones)."""
         sets = {}
 
         def add(owners, owner):  # one frozenset per combination of owners
@@ -688,8 +693,8 @@ class Removal:
                 last, marked = residue, set()
                 here = []  # (owners by key, key) of the tables' names for this residue
                 for shape in other_shapes:
-                    key = _normed(getters[shape](values))
-                    if key in wanted[shape]:
+                    key = wanted[shape].get(_normed(getters[shape](values)))
+                    if key is not None:
                         here.append((owned[shape], key))
                 active = [s for s in atom_shapes if _normed(getters[residue_part[s]](values)) in named_residues[s]]
                 names = [(chains[role], _norm(values[pos])) for role, pos in chain_pos]
@@ -735,8 +740,8 @@ class Removal:
                     for trim in trims:
                         trim.setdefault(number, []).append((owner, ids))
             for shape in active:
-                key = _normed(getters[shape](values))
-                if key in wanted[shape]:
+                key = wanted[shape].get(_normed(getters[shape](values)))
+                if key is not None:
                     by_key = owned[shape]
                     by_key[key] = add(by_key.get(key), owner)
         # A chain with no atoms at a position (unobserved there) keeps it while the chain is kept: its row

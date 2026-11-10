@@ -1059,6 +1059,28 @@ breaks of the one-letter code were fixed during the run, and the four entries re
 18 byte for byte (6 entries, 3 pipelines). Unit suite: 251 tests pass. Time: no change measured
 (`mmcif_selchain` and `mmcif_delres` on 4V6X and 1JJ2 within the noise of the code before).
 
+**Full stress test on the committed code** (f830b71, 2026-11-10): both rounds again, 5 workers, 78 and 45 minutes
+(61 and 38 on Nov 7, with the machine busier: the tools whose code did not change took 1.18-1.20x as long). Against
+Nov 7: no check went from passing to failing; 8 went from failing to passing (`_pdbx_modification_feature` after
+`mmcif_selatom`/`mmcif_selelem` on 1X6Z, 1GO6 and four 1X6Z variants; 1X6Z_no_label `mmcif_shiftres`; 9A0K
+`mmcif_splitchain`). But 8TO0's tools that remove atoms used about 110 MB more memory. Back to back, the new code
+took 14.6 s against 13.6 s for `mmcif_delchain` on 8TO0 (7%), with 422 MB against 305 MB. The cause: with the model
+number (1D3Z above), the rows of `_pdbx_unobs_or_zero_occ_atoms` and `_residues` (157,000 and 32,500 keys in 8TO0)
+became a shape of their own instead of sharing `_pdbx_poly_seq_scheme`'s keys. Each such key kept the strings of
+its row, and the first look at the atoms kept an equal key made from an atom's strings. **Fixed:** each key is now
+kept once, with interned strings (`sys.intern`), and the first look uses that key.
+
+| Command | Before f830b71 | f830b71 | Now |
+|---|---|---|---|
+| 8TO0 `mmcif_delchain` | 303 MB | 403 MB | 285 MB |
+| 7Y7A `mmcif_selchain` | 563 MB | 581 MB | 550 MB |
+| 4V6X `mmcif_selatom` | 103 MB | 124 MB | 99 MB |
+
+The time is the same. On all 6,888 removal commands of both rounds, f830b71 and the fix give byte-identical
+outputs. That is 6,595 commands in the same total time (5,477 s and 5,455 s), plus 293 runs of `mmcif_intersect`
+against the input's first 100 atoms. Peak memory is at most 9 MB higher, and up to 200 MB lower (4TUC
+`mmcif_delelem -H`: 333 to 132 MB). Unit suite: 251 tests pass; smoke test clean.
+
 **Tests:** `tests/test_chains.py` (TestKeptRows, TestChains, TestPipes, on the entries under 500 kB) with its
 checker `tests/kept_rows.py`, and 8 more in `tests/test_refs.py` (41), each failing on the code before its fix.
 Like the rest of `tests/`, they stay out of the public repository; CI runs `tools/smoke_test.py`.
