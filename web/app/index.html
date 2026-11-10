@@ -189,13 +189,13 @@
     <div class="step finish" id="finish" hidden>
       <div class="step-row">
         <span class="step-num" id="finish-num"></span>
-        <label class="finish-on"><input type="checkbox" id="finish-on" checked> Finish with <code>mmcif_delmeta</code></label>
+        <label class="finish-on"><input type="checkbox" id="finish-on"> Finish with <code>mmcif_delmeta</code></label>
         <span class="option"><span class="dash">-</span><input type="text" id="finish-option" spellcheck="false"
           autocomplete="off" placeholder="all (optional)" aria-label="Option of mmcif_delmeta"></span>
         <button type="button" class="icon" id="finish-help-button" title="Help" aria-expanded="false">?</button>
       </div>
-      <p class="summary">Deletes the tables that prediction and simulation programs do not read; the tools keep
-        them all in step with the edits. On by default: untick it to keep every table.
+      <p class="summary">Deletes the tables that prediction and simulation programs do not read. Off by default:
+        the tools keep every table in step with the edits, so tick it only for a smaller file.
         <a href="../docs/mmcif/#metadata-follows-the-edits">Why?</a></p>
       <p class="hint" id="finish-hint" hidden></p>
       <pre class="help" id="finish-help" hidden></pre>

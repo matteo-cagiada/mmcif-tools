@@ -5,6 +5,12 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
+## Unreleased
+
+- **In the browser:** pipelines no longer end with `mmcif_delmeta` by default. Since 0.2.0 the tools keep every
+  table in step with the edits, so tick it only to delete the tables that prediction and simulation programs do
+  not read. A link to a pipeline that ends with `mmcif_delmeta` still ticks it.
+
 ## 0.2.0 (2026-11-10): metadata follows the edits
 
 - **The metadata follows the edits.** Every tool keeps the tables that name chains, residues or atoms in step with

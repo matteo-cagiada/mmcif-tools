@@ -17,7 +17,7 @@ const state = {
   files: [], // {name, file}
   input: 0, // index of the input file, for tools that read one file
   steps: [], // {tool, option, label, help}
-  finish: { on: true, option: '', help: false }, // mmcif_delmeta after the steps
+  finish: { on: false, option: '', help: false }, // mmcif_delmeta after the steps (unticked by default)
   sent: [], // the steps of the current run
   startedAt: 0,
   timer: null,
@@ -215,16 +215,16 @@ function parsePipeline(text) {
   return steps;
 }
 
-// The steps of a #pipeline. A last mmcif_delmeta is the finishing step; a
-// pipeline that ends in mmCIF without it was made with that step unticked.
+// The steps of a #pipeline. A last mmcif_delmeta is the finishing step, ticked;
+// without it the step is unticked. Links made while it was ticked by default
+// keep their meaning.
 function loadPipeline(text) {
   state.steps = parsePipeline(text);
   const last = state.steps[state.steps.length - 1];
-  if (state.steps.length > 1 && last.tool === 'delmeta') {
+  state.finish.on = state.steps.length > 1 && last.tool === 'delmeta';
+  if (state.finish.on) {
     state.steps.pop();
     state.finish.option = last.option;
-  } else if (state.steps.length && !finishProblem()) {
-    state.finish.on = false;
   }
 }
 

@@ -859,7 +859,12 @@ a chain, a residue or an atom (4V6X: 62,000 such rows for 238,000 atoms).
 24. **Removed residues leave the sequence tables.** When a tool removes residues (`mmcif_selchain`,
     `mmcif_delres`, ...), their rows go from `_pdbx_poly_seq_scheme`, and a position of `_entity_poly_seq` goes
     when no chain of the molecule keeps it. Residues the input already had no atoms for (unobserved) stay.
-25. **What the browser page finishes with** (`mmcif_delmeta` ticked or not) is decided later.
+25. **What the browser page finishes with** (`mmcif_delmeta` ticked or not) is decided later. *Decided
+    2026-11-10:* unticked, after trying the page with 0.2.0 (from PyPI) on three entries of the stress test,
+    with and without `mmcif_delmeta`: `mmcif_selchain -2` on 5DGF (404,000 atoms), `mmcif_delchain -0` on 8TO0
+    (674,000) and `mmcif_selchain -A1` on 7Y7A (2.5 million, the largest). The six outputs are byte-identical to
+    the command line's, in 1.1 to 1.2 times its time (7Y7A: 31.8 s against 28.9 s); `mmcif_delmeta` adds 6.4 s
+    on 8TO0. A link to a pipeline that ends with `mmcif_delmeta` still ticks it.
 
 **How:**
 
