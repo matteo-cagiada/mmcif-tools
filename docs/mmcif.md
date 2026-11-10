@@ -171,8 +171,8 @@ seq_id	mon_id	pdb_seq_num	auth_seq_num
   program.
 
 `mmcif_assembly`, `mmcif_merge` and `mmcif_mkensemble` make new chains; the metadata keeps describing the chains of
-the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables: [`mmcif_delmeta`](usage.md#mmcif_delmeta)
-deletes the others.
+the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables:
+[`mmcif_delmeta`](tools.md#mmcif_delmeta) deletes the others.
 
 ## Entities
 

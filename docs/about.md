@@ -12,17 +12,17 @@ whenever possible: it helps support the development of the software. You can get
 [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff)) or from the
 [Zenodo record](https://doi.org/10.5281/zenodo.23966235).
 
-In BibTeX, for version 0.2.0:
+In BibTeX, for version 0.2.1:
 
 ```bibtex
 @software{cagiada2026mmciftools,
   author    = {Cagiada, Matteo},
   title     = {{mmcif-tools: command-line tools for mmCIF files}},
-  version   = {0.2.0},
+  version   = {0.2.1},
   publisher = {Zenodo},
   year      = {2026},
-  doi       = {10.5281/zenodo.24104355},
-  url       = {https://doi.org/10.5281/zenodo.24104355}
+  doi       = {10.5281/zenodo.24114923},
+  url       = {https://doi.org/10.5281/zenodo.24114923}
 }
 ```
 

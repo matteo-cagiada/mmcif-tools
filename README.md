@@ -17,7 +17,7 @@ together with Unix pipes: select, delete, edit, convert and inspect structures w
 package needs only the Python standard library (Python 3.9 or newer).
 
 ```bash
-mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta > clean.cif
+mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
 **CURRENT VERSION: Version 0.2.1, pre-release: 53 available tools**
@@ -79,7 +79,7 @@ The full `--help` text of every tool is in the [tool reference](https://matteo-c
 
 ```bash
 # A clean protein for docking or simulations: one conformer, no ligands or waters, an aligned layout
-mmcif_fetch 4hhb | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_delmeta | mmcif_tidy > 4hhb_protein.cif
+mmcif_fetch 4hhb | mmcif_selaltloc | mmcif_delentity -non-polymer,water | mmcif_tidy > 4hhb_protein.cif
 
 # Chain A with its heme, numbered from 1, as a PDB file for programs that need one
 mmcif_fetch 4hhb | mmcif_selchain -A | mmcif_delentity -water | mmcif_reres -1 | mmcif_topdb > 4hhb_A.pdb
@@ -103,36 +103,6 @@ mmcif_label2auth 4hhb.cif > 4hhb_by_sequence.cif
 # Delete only some categories: here the PDB's validation reports and secondary structure
 mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb_lean.cif
 ```
-
-### `mmcif_delmeta`
-
-A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. The rest describes
-the experiment, the validation, the secondary structure, the binding sites, the assemblies, and more. The tools keep
-the tables that name chains, residues or atoms in step with their edits (see
-[Metadata follows the edits](#metadata-follows-the-edits)), but simulation and prediction programs read few of
-them, and some stop at categories they do not expect.
-
-`mmcif_delmeta` deletes that metadata and keeps what is fundamental: the atoms, their links and anisotropic B-factors;
-the entry id, method, resolution and release dates; the unit cell and space group; the entities, chains and
-sequences; the ligands and modified residues; and the chemical components with their atoms and bonds. It also
-brings these tables in step with the atoms, for files edited by other programs: chains, entities and modified
-residues with no atoms left are removed,
-the number of molecules and the chains of each entity are recomputed, modified residues get their current author
-numbers, and the table that places each chain's residues on its sequence (`_pdbx_poly_seq_scheme`) is rebuilt.
-For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF.
-
-```bash
-mmcif_fetch 4hhb | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 | mmcif_delmeta > 4hhb_clean.cif
-```
-
-We suggest running `mmcif_delmeta` as the last step, after you have completed the structure manipulations, when
-the file goes to a prediction or simulation program.
-
-The kept categories are also those that structure prediction programs read from template or input files (AlphaFold 2
-and 3, ColabFold, OpenFold3, Boltz, Chai-1, Protenix, BioEmu), and MD preparation programs from structures (OpenMM,
-PDBFixer).
-
-`mmcif_delmeta -all` keeps only the atoms and links, and `mmcif_keepcat` keeps exactly the categories you list.
 
 ### Tips
 
@@ -349,8 +319,8 @@ seq_id	mon_id	pdb_seq_num	auth_seq_num
   program.
 
 `mmcif_assembly`, `mmcif_merge` and `mmcif_mkensemble` make new chains; the metadata keeps describing the chains of
-the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables: [`mmcif_delmeta`](#mmcif_delmeta)
-deletes the others.
+the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables:
+[`mmcif_delmeta`](https://matteo-cagiada.github.io/mmcif-tools/docs/tools/#mmcif_delmeta) deletes the others.
 
 ### Entities
 
@@ -426,17 +396,17 @@ whenever possible: it helps support the development of the software. You can get
 [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff)) or from the
 [Zenodo record](https://doi.org/10.5281/zenodo.23966235).
 
-In BibTeX, for version 0.2.0:
+In BibTeX, for version 0.2.1:
 
 ```bibtex
 @software{cagiada2026mmciftools,
   author    = {Cagiada, Matteo},
   title     = {{mmcif-tools: command-line tools for mmCIF files}},
-  version   = {0.2.0},
+  version   = {0.2.1},
   publisher = {Zenodo},
   year      = {2026},
-  doi       = {10.5281/zenodo.24104355},
-  url       = {https://doi.org/10.5281/zenodo.24104355}
+  doi       = {10.5281/zenodo.24114923},
+  url       = {https://doi.org/10.5281/zenodo.24114923}
 }
 ```
 
