@@ -1117,3 +1117,8 @@ are `monomeric` to `eicosameric` for 1 to 20 chains (11 to 20 also as `11-meric`
   4HHB in `TestRemovals`. On the 12 entries, 6 removal tools: 53 assemblies kept, 25 counts changed, each equal to
   the polymer chains its lists name after the edit. Unit suite: 256 tests pass; the smoke test is clean on a fresh
   install of the tree.
+
+**The smoke test could check another installation.** It listed the commands next to the Python running it, but ran
+the first ones on the PATH: with a venv's Python and miniconda's 0.1.0 first on the PATH, it ran 0.1.0's commands
+and passed. It now runs the commands pip recorded for that Python's mmcif-tools (its RECORD), prints the version and
+the folder of the commands, and fails when that Python has no mmcif-tools.
