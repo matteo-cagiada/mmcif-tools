@@ -19,13 +19,14 @@
 Splits an mmCIF file into several, each containing one model.
 
 As pdb_splitmodel, writes <name>_<model>.cif files in the current directory
-(<name> is the input file name without its extension, or 'splitmodels'
-when reading stdin), named by the model numbers as written, and prints
-nothing. Unlike pdb_splitmodel, which writes nothing for a file without
-MODEL records, a single-model file gives one file; and each file is a
-complete mmCIF file: the metadata categories are kept, the data block is
-renamed <block>_<model>, and rows of _atom_site_anisotrop and _struct_conn
-of removed atoms are removed.
+(<name> is the input file name without its extension, or 'splitmodels' when
+reading stdin), named by the model numbers as written, and prints nothing.
+Unlike pdb_splitmodel, which writes nothing for a file without MODEL
+records, a single-model file gives one file; and each file is a complete
+mmCIF file: the metadata categories are kept, the data block is renamed
+<block>_<model>, and rows of the other tables that name removed models,
+atoms, residues or chains are removed (_atom_site_anisotrop, _struct_conn,
+the validation reports of the other models, ...).
 
 Usage:
     mmcif_splitmodel <cif file>

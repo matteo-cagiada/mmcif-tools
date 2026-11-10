@@ -20,8 +20,9 @@ Extracts one or more chains from an mmCIF file.
 
 Chains are matched on auth_asym_id (the chain shown by viewers), or on
 label_asym_id with --label. Chain identifiers are case-sensitive and may be
-longer than one character. Rows of _atom_site_anisotrop and _struct_conn
-that refer to removed atoms are removed too.
+longer than one character. Rows of the other tables that name removed atoms,
+residues or chains are removed too (_atom_site_anisotrop, _struct_conn,
+_pdbx_poly_seq_scheme, ...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_selchain -<chain id>[,<chain id>...] [--label] <cif file>

@@ -177,7 +177,8 @@ tools, chainbows and the two chain/segment swaps), plus 6 new: 48 tools.
 | **3. CIF extras** | 🆕 tools (without `mmcif_prune`), the `mmcif_frompdb` TER fix, leftovers from phases 1–2 | Done (§11) |
 | **4. Test release 0.1.0** | Rename to mmcif-tools; gemmi out of the package and tests (separate script); tool reference, CHANGELOG, CITATION; packaging metadata; CI up to Python 3.15; entity, assembly and info tools | Done (§12) |
 | **5. Public release** | Feedback from testers; user guide (GitHub Pages); PyPI (TestPyPI first, trusted publishing on a tag), then conda-forge | `pip install mmcif-tools` works |
-| **6. After the first release** | `mmcif_prune` (§7, decision 9) | |
+| **6. After the first release** | `mmcif_prune` (§7, decision 9) | Replaced by phase 7 |
+| **7. Release 0.2.0: metadata in step** | Every tool keeps the tables that name chains, residues or atoms in step with its edits (§15) | No tool leaves a stale reference on the real entries |
 
 Before phase 1, one useful step: **grep our own lab scripts/pipelines for `pdb_` calls** to rank the tools by how
 much we use them, and adjust the "Core 20" list.
@@ -282,7 +283,7 @@ Decided for phase 4 (2026-10-24):
     integration, which archives only releases published after it was turned on; its metadata come from
     CITATION.cff), which gives the software its DOI: 10.5281/zenodo.23966235 for all versions (in CITATION.cff and
     the README's badge), 10.5281/zenodo.23966236 for 0.1.2. After each release, the README's BibTeX entry gets
-    the new version and its DOI from Zenodo.
+    the new version and its DOI from Zenodo. 0.2.0 (2026-11-10): the metadata follows the edits (§15, §16).
 18. **Python 3.9 stays while it costs nothing** (the code is stdlib only and macOS's own python3 is 3.9); CI
     also covers the newest versions, up to 3.15.
 19. **Four more mmCIF tools:** `mmcif_selentity` / `mmcif_delentity`, `mmcif_assembly`, `mmcif_info`.
@@ -842,3 +843,244 @@ the reports.
 - **The only change from round 1:** 3 more refusals, as intended. On the integrative entry 9A1M, which has no
   `auth_seq_id`, `mmcif_reres` and `mmcif_shiftres` (both forms) now refuse instead of renumbering
   `label_seq_id`.
+
+## 15. Phase 7 (2026-11-07): metadata in step with the edits
+
+**The problem.** Users read the metadata after an edit and think nothing changed: after `mmcif_reres` the
+secondary structure, the sites and the sequence schemes still give the old numbers. Today only
+`_atom_site_anisotrop` and `_struct_conn` follow the edits (`_atoms.filter_atoms` and `_atoms.rename`), and
+`mmcif_delmeta` brings a few tables it keeps back in step. The real entries carry 7 to 26 other tables that name
+a chain, a residue or an atom (4V6X: 62,000 such rows for 238,000 atoms).
+
+**Decisions (2026-11-07):**
+
+23. **On by default**, with no option: stale metadata is never wanted, and `_struct_conn` already follows the
+    edits by default.
+24. **Removed residues leave the sequence tables.** When a tool removes residues (`mmcif_selchain`,
+    `mmcif_delres`, ...), their rows go from `_pdbx_poly_seq_scheme`, and a position of `_entity_poly_seq` goes
+    when no chain of the molecule keeps it. Residues the input already had no atoms for (unobserved) stay.
+25. **What the browser page finishes with** (`mmcif_delmeta` ticked or not) is decided later.
+
+**How:**
+
+- **A list of references** (`mmciftools/_refs.py`): for each table, the groups of columns that together name a
+  chain, a residue or an atom, by role (label or author chain, number, name, atom; insertion code; alt id), and
+  what a group is: a point, one end of a range, or a list of chains.
+- **Matching.** A group names something through the columns it has. It is compared with the atoms on the roles
+  both have (validation tables have author ids only, `_ma_qa_metric_local` label ids only); alt ids are not
+  compared, and `.` / `?` are the same.
+- **Renames** (`_atoms.rename`): the tool's chain and number mapping is applied to every listed table, as it is
+  to `_struct_conn` today.
+- **Removals** (`_atoms.filter_atoms`): a first look finds the residues and atoms the tool removes (present in
+  the input, absent from the output). Rows naming one are removed; a range whose end was removed is trimmed to
+  the residues left, or removed when none is left; lists of chains are pruned. Only what the tool removed
+  counts: a reference to an unobserved residue stays as it is.
+- **Totals** (`_entity.pdbx_number_of_molecules`, `_entity_poly.pdbx_strand_id`, rows of molecules and chains
+  with no atoms left) follow, as `mmcif_delmeta` does them now.
+- **Cost:** a per-residue map and the referenced atoms, not every atom. A first read of the atoms takes 0.5 s on
+  4V6X (`mmcif_selchain`: 1.5 s in all).
+
+**Out of scope for 0.2.0:** tools that make new chains (`mmcif_assembly`, `mmcif_merge`,
+`mmcif_mkensemble`) and `--label` renumbering keep what they do now.
+
+**Done (2026-11-07, on `dev`):**
+
+- **`mmciftools/_refs.py`:** the list of 50 tables and their groups; the checker (`problems()`, also used by
+  `mmcif_validate`, as warnings); `Removal` / `View`, the removals; and the helpers for renames and names.
+  `_atoms.filter_atoms` and `_atoms.rename` use it, and so do `mmcif_splitchain` (one view per chain, the chains
+  as owners of one first look), `mmcif_selaltloc`, `mmcif_label2auth`, `mmcif_fixinsert`, `mmcif_rplresname` and
+  `mmcif_uniqname`.
+- **Residues without atoms:** `mmcif_reres` gives them `?` (their old number may now be another residue's);
+  `mmcif_shiftres` shifts them; `mmcif_label2auth` gives them their label ids. `mmcif_fixinsert` leaves them.
+- **Checks on the 12 real entries** (every tool call of `tests/test_real.py`): before, every tool that edits
+  chains, residues or atoms except `mmcif_sort` and `mmcif_selmodel` left rows out of step, from 1 to 4,600 per
+  tool and entry; now none. The checker finds nothing in the unedited entries. The only rows it still flags
+  are after `mmcif_label2auth`, and they are right: a chain is renamed to a name another chain had, so the
+  before/after comparison mistakes a row for the old residue.
+- **Bugs found on the way:** `_struct_ref_seq` names its chain once for both ends, so a chain was renamed twice;
+  `_struct_ref_seq_dif` has only the label residue name, so a residue modelled as two types took the wrong
+  number; `mmcif_label2auth` compared insertion codes `.` and `?` as different.
+- **Tests:** `tests/test_refs.py` (13: the checker over every tool on the entries under 1 MB, renames, removals,
+  trimming, sheets, sequences, validate); three older tests encoded the 0.1 behaviour and were updated. 218 pass.
+- **Cost** (time, peak memory; 0.1.2 against now): 4HHB 0.06 to 0.13-0.15 s for the tools that remove atoms;
+  6VXX 0.15 to 0.26-0.29 s; 1JJ2 0.75 to 1.3-1.5 s (+15 MB); 4V6X 1.6 to 2.3-3.2 s (up to +50 MB, 95 MB in all).
+  Renames take 10-25% longer. The first look reads the tables (0.4 s on 4V6X) and the atoms (0.5 s) once more;
+  0.1 read only `_struct_conn` there. Not measured on the 2.5-million-atom entries of the stress test, whose
+  files are outside this folder.
+- **Left as they were:** `mmcif_assembly`, `mmcif_merge`, `mmcif_mkensemble` (new chains) and `--label`
+  renumbering. Positions of `_entity_poly_seq` are judged by number, so of a position modelled as two residue types
+  (1EJG PRO/SER 22) both rows stay while one type has atoms.
+- **Dictionary check (2026-11-07):** the PDBx/mmCIF dictionary 5.418 (`mmcif_pdbx_v50.dic`, downloaded into the
+  scratch folder, not the repository) and `gemmi validate -d ... -p` on the input and the 36 outputs of each of
+  the 12 entries; an output passes when it has no message its input does not have. It found what the checker
+  could not see, now fixed:
+  - `mmcif_selmodel` / `mmcif_splitmodel` left validation rows of the removed models (`PDB_model_num`): the
+    model is now part of what a row names, and `mmcif_validate` reports a row of a model with no atoms.
+  - `mmcif_selaltloc` left validation rows naming removed conformers: every table with alt ids now follows it as
+    `_struct_conn` did (`_refs.AltIds`).
+  - A molecule with no atoms left kept its `_struct_ref_seq` when the alignment's ends had no atoms, and
+    `_struct_ref_seq_dif` rows outlived their alignment: new cascades (`_struct_ref` → `_struct_ref_seq` →
+    `_struct_ref_seq_dif`), and a row naming a polymer residue of an author chain goes when the chain has no
+    polymer left. Cascades now also apply while deciding the parents (parents come first in a file).
+  - `_pdbx_nonpoly_atom_coordination_sphere_order` outlived its sphere: cascade added.
+  - `_pdbx_entity_instance_feature` names a kind of residue without a chain (6VXX: NAG): it goes when no residue
+    of that name is left.
+  - `mmcif_rplresname` left `_chem_comp` with the old name, so the atoms' residue had no definition: it renames the
+    definitions too, or removes the old one when the new name is already defined.
+  - `mmcif_delmeta` deleted tables the kept ones point to: it keeps `_struct_conn_type`, `_pdbx_nonpoly_scheme`
+    and the EM chain from `_em_image_processing` to `_em_experiment`.
+
+  Left: when no polymer is left (`mmcif_selhetatm`, `mmcif_delentity -polymer`, ...), `_atom_site.label_seq_id` is
+  all `.` and gemmi reports the absent `_entity_poly_seq` (no value points to it); and `mmcif_keepcoord` keeps only
+  the coordinates, as `pdb_keepcoord` does. Tests: 8 more in `tests/test_refs.py` (21), each failing on the code
+  before the fix.
+- **Stress test again (2026-11-07):** both rounds of the October stress test (200 entries, then 100 entries and
+  variants; folder `../mmcif-tools-stress`, outside the repository) on the code of f3e7b62 plus the fixes above,
+  with two more checks per output: gemmi's parent check against the input's (`check_with_gemmi.py --dict ...
+  --parents`), and `_refs.problems()` against the input's. No runner failure, no tool error. Each flagged entry
+  was rerun on the fixed code until only expected messages were left. Found and fixed:
+  - Tables nobody followed, found through the dictionary's item-linked groups: `_pdbx_distant_solvent_atoms`,
+    `_pdbx_sifts_xref_db`, `_pdbx_sifts_unp_segments`, `_pdbx_sifts_xref_db_segments` (PDBe's updated files),
+    `_refine_ls_restr_ncs`, `_struct_ncs_dom_lim`, `_pdbx_coordinate_model`, and of ModelCIF
+    `_ma_template_details` (with its children by `template_id`) and `_ma_target_ref_db_details`: 50 tables now.
+  - Model numbers are also read from `pdbx_PDB_model_num` (`_struct_mon_prot_cis`) and `model_number`
+    (`_ndb_struct_na_base_pair*`).
+  - 1R6Z `mmcif_selchain -P`: positions 501-502 of `_entity_poly_seq` went (no kept chain had atoms there) while
+    chain P's unobserved rows of `_pdbx_poly_seq_scheme` stayed. A kept chain without atoms at a position now
+    keeps it.
+  - 2RH1 `mmcif_delres`: rows of `_pdbx_unobs_or_zero_occ_atoms` (atoms never in `_atom_site`) outlived their
+    residue; they now follow it (`Table.absent`: rows flagged unobserved are looked up by residue only, which also
+    saves the per-atom work: 8TO0 has 660,000 of them). The checker sees it too.
+  - 9A0K (integrative models): `_struct_ref_seq` and `_struct_ref_seq_dif` without chain columns name positions
+    of the molecule: they now follow `_entity_poly_seq` (CHAINLESS), through `_struct_ref.entity_id`.
+  - 9A0K `mmcif_splitchain` (found by the final run): `_entity_poly.pdbx_strand_id` lists `V` but not `v`, the
+    other copy of the molecule, so chain v's file lost its `_entity_poly` row while keeping `_entity_poly_seq`.
+    A list of a kept molecule that would be emptied now lists the molecule's kept author chains.
+  - 8PJO `mmcif_label2auth`: an unobserved residue whose author number was also a water's of the same author
+    chain got the water's chain in `_pdbx_poly_seq_scheme`; an author match now counts only within the row's
+    label chain.
+  - 3DIO `mmcif_uniqname`: conformers of one atom get different names (as in `pdb_uniqname`); a row naming
+    conformer A got B's. The new names are now looked up by alt id too.
+  - 2C4S `mmcif_element -all`: new elements (from the name rules) were not in `_atom_type`: rows are added.
+  - A child row is kept when another parent row with its key is kept (CHILDREN keys need not be unique).
+  - `mmcif_validate` was quadratic on water-rich files (the waters of a chain share their label ids): 7OW7 20 s
+    to 3 s.
+
+  Expected, left: outputs with no polymer (gemmi reports the absent `_entity_poly_seq`); `mmcif_keepcoord`,
+  `mmcif_keepcat`, `mmcif_frompdb`, `mmcif_mkensemble` (atoms only); `mmcif_merge`, `mmcif_assembly`,
+  `mmcif_reres --label` (out of scope); residue-level rows (`_struct_mon_prot_cis`, `_pdbx_modification_feature`,
+  `_pdbx_validate_torsion`) whose residue keeps only conformers A/B after `mmcif_selatom`, which gemmi's keys
+  (with the alt id) do not match; variants whose input is out of step already (author numbers shifted in
+  `_atom_site` only) or lacks the label or author columns; and files with two data blocks, where only the first
+  block's tables follow (`mmcif_head` leaves the second block without atoms).
+
+  Final run (both rounds again on the final code, 61 and 38 minutes with 5 workers): the unit suite passed (238
+  tests); against the first run, 282 and 234 checks went from failing to passing and none the other way; what is
+  left is the list above, plus the 9A0K strand list, fixed afterwards (the affected systems were rerun).
+
+  Time (final run against October): the tools that remove atoms 1.48x in all in round 1 (median 1.44x per run)
+  and 1.60x in round 2 (median 1.56x); the others 0.87x and 0.97x, so the machine was less loaded than in October
+  (the first run, under more load, gave 1.69x and 1.00x). `mmcif_validate` 1.8-2.0x (more tables to check).
+  7Y7A (2.5 million atoms) 1,006 s against 903 s for all its commands. 8TO0 430 s against 253 s, because of its
+  660,000 rows of unobserved atoms (510 s before they were looked up by residue). Peak memory: 7Y7A 2.1 GB
+  against 1.8 GB, both from `mmcif_assembly`, which varies by about 150 MB between runs (7EZX: 1.15, 0.91,
+  1.05 GB); `mmcif_splitchain` on 7Y7A now peaks at 1.1 GB (October: 53 MB), the record of its 1,792 chains'
+  rows.
+
+## 16. Wrongly removed rows and chained tools (2026-11-09)
+
+The checks of §15 see rows left out of step: `_refs.problems()` and gemmi's parent check flag a row naming
+something with no atoms. They cannot see a row removed that should have stayed, and every tool was checked
+alone. Before the 0.2.0 release, two more checks:
+
+- **No row removed without a reason** (`tests/kept_rows.py`). Every row of the input's tables (first data block,
+  all but `_atom_site`) gets a tag column; the tool runs on the tagged file (the tags do not change its output);
+  a tag missing from the output is a removed row. The reasons a row should go are worked out from the atoms of
+  the input and the output only, not from the engine: what it names had atoms and has none (by label or author
+  ids), its chain, model, molecule, kind of residue or polymer is gone, the conformer it names is gone (at its
+  atom), a range has no residue left, a list of chains none left, a position of the sequence no kept chain has,
+  its parent row went (CHILDREN) or it has no child row left (EMPTIED); for `_atom_site_anisotrop`, its atom (by
+  id). A removed row with no reason is reported, and so is a kept row with one. Planted errors on 4HHB are seen.
+- **Tools one after another** (`tests/test_chains.py`): two removals in either order, a rename and a removal in
+  either order, a selection narrowed twice and at once, a removal run twice, a rename and its inverse (same
+  tables); realistic pipelines (no stale row against the input's own, no row removed without a reason, no new
+  message from gemmi); and shell pipelines of the commands (gzip input, stdin to stdout), byte for byte against
+  the same tools run in Python.
+
+Run on the 12 real entries and on the 205 stress-test systems under 60,000 atoms (172 of round 1, 33 of round 2;
+folder `../mmcif-tools-stress`): each tool that removes atoms (about 25 calls, with `mmcif_splitchain`,
+`mmcif_splitmodel` and `mmcif_intersect`), and about 45 chained cases per entry, with gemmi on the pipelines.
+
+**Found and fixed** (each with a test in `tests/test_refs.py` that fails on the code before):
+
+- 1JJ2, 1KX5: a residue deleted from the construct (`_struct_ref_seq_dif`, no number, no name) named its chain
+  and the chain's waters, whose label number is null too: `mmcif_delhetatm` removed it. It now names its chain
+  only.
+- 1D3Z: `mmcif_delres` with a step removes different residues in each model; validation rows of model 2 named a
+  residue with atoms in model 1 only, and stayed. A row with a model number names the residue of that model.
+- 1RRU, 1R6Z: a chain with no atoms at a position keeps it (unobserved), but an earlier edit may have cut the
+  chain there: `mmcif_selres 6:21 | mmcif_delhetatm` kept five positions that `mmcif_delhetatm | mmcif_selres
+  6:21` removed. A chain now keeps only the positions its `_pdbx_poly_seq_scheme` lists, and a position with no
+  atoms in any chain goes with the chains that list it.
+- 9A8A (integrative): an alignment with no chain (`_struct_ref_seq`) was trimmed to a position an earlier edit
+  had removed; a position without atoms inside it is left only while `_entity_poly_seq` lists it.
+- 4DV6 and other X-ray entries: `_pdbx_refine_tls_group` rows with `?` label ids were never matched, because
+  a null label number counted as a ligand's. Their ends were never trimmed, and the checker flagged them in the
+  unedited files: 644 ends in 19 of the 33 stress files with TLS groups (274 in 4DV6). A null label number now
+  counts only beside a label chain, and a range named by author ids is trimmed through its residues' label
+  numbers; 18 ends are left flagged, in 5 files, and they name residues that have no atoms (`A 0`).
+- 1X6Z, 1GO6: `_pdbx_modification_feature` named whole residues, so a disulfide stayed after `mmcif_selatom` or
+  `mmcif_selelem` removed its SG atoms. It now names the atom of each residue's bond
+  (`comp_id_linking_atom`, `modified_residue_id_linking_atom`) when it has one.
+- 3RUN, 4N01, 5O31 (found by the final run): the rewritten one-letter code was cut every 80 characters, also
+  inside a code such as `(CCS)`; the next tool read the cut code with its line break, so one removal and the same
+  removal in two steps broke the lines differently (the same sequence once the line breaks are dropped). Lines
+  now break between residues, and a code's whitespace is dropped when it is read.
+
+**The checker, not the tools:** 4PTJ (42 million flags) and 8YIX: `_atom_site_anisotrop` names its atom by id
+(4PTJ's models hold different residues); the check now uses the id. The pipelines' stale count discounts the
+input's own rows (7X4D's TLS groups name residue 0, which has no atoms). 9A0K has no author numbers.
+
+**Expected, left:**
+- `mmcif_selaltloc` chooses per residue among the atoms present: after `mmcif_selatom -CA` only MET 64's
+  conformer B is left in 6U1A (NRQ, A, has no CA), so `selatom | selaltloc` keeps B and `selaltloc | selatom`
+  keeps A. Also `selaltloc -A | selaltloc` against `selaltloc -A` (as in 0.1.0).
+- `mmcif_rplchain -A:ZZ | mmcif_delchain -ZZ` against `mmcif_delchain -A`: `_pdbx_branch_scheme.auth_asym_id`
+  (the depositor's chain) follows the rename.
+- No polymer left (6CLI, 8YG2: `delres 1:11` removes the whole peptide): gemmi reports the absent
+  `_entity_poly_seq`, as in §15.
+- 6L9C: gemmi matches a `?` alt id only to atoms without one; after `mmcif_selatom -CA` LYS 242 keeps only its
+  conformers A and B (§15).
+
+**Final run** (the final code, 10 workers): no row removed without a reason on the 205 systems (58 minutes), the
+11 other entries and 4V6X (14 minutes). Chained: on the 205 systems (22 minutes) and the 12 entries (4V6X 8
+minutes), only the expected cases above: `mmcif_selaltloc` 20, `_pdbx_branch_scheme` 11, gemmi 3; the line
+breaks of the one-letter code were fixed during the run, and the four entries rerun clean. Shell pipelines: 18 of
+18 byte for byte (6 entries, 3 pipelines). Unit suite: 251 tests pass. Time: no change measured
+(`mmcif_selchain` and `mmcif_delres` on 4V6X and 1JJ2 within the noise of the code before).
+
+**Full stress test on the committed code** (f830b71, 2026-11-10): both rounds again, 5 workers, 78 and 45 minutes
+(61 and 38 on Nov 7, with the machine busier: the tools whose code did not change took 1.18-1.20x as long). Against
+Nov 7: no check went from passing to failing; 8 went from failing to passing (`_pdbx_modification_feature` after
+`mmcif_selatom`/`mmcif_selelem` on 1X6Z, 1GO6 and four 1X6Z variants; 1X6Z_no_label `mmcif_shiftres`; 9A0K
+`mmcif_splitchain`). But 8TO0's tools that remove atoms used about 110 MB more memory. Back to back, the new code
+took 14.6 s against 13.6 s for `mmcif_delchain` on 8TO0 (7%), with 422 MB against 305 MB. The cause: with the model
+number (1D3Z above), the rows of `_pdbx_unobs_or_zero_occ_atoms` and `_residues` (157,000 and 32,500 keys in 8TO0)
+became a shape of their own instead of sharing `_pdbx_poly_seq_scheme`'s keys. Each such key kept the strings of
+its row, and the first look at the atoms kept an equal key made from an atom's strings. **Fixed:** each key is now
+kept once, with interned strings (`sys.intern`), and the first look uses that key.
+
+| Command | Before f830b71 | f830b71 | Now |
+|---|---|---|---|
+| 8TO0 `mmcif_delchain` | 303 MB | 403 MB | 285 MB |
+| 7Y7A `mmcif_selchain` | 563 MB | 581 MB | 550 MB |
+| 4V6X `mmcif_selatom` | 103 MB | 124 MB | 99 MB |
+
+The time is the same. On all 6,888 removal commands of both rounds, f830b71 and the fix give byte-identical
+outputs. That is 6,595 commands in the same total time (5,477 s and 5,455 s), plus 293 runs of `mmcif_intersect`
+against the input's first 100 atoms. Peak memory is at most 9 MB higher, and up to 200 MB lower (4TUC
+`mmcif_delelem -H`: 333 to 132 MB). Unit suite: 251 tests pass; smoke test clean.
+
+**Tests:** `tests/test_chains.py` (TestKeptRows, TestChains, TestPipes, on the entries under 500 kB) with its
+checker `tests/kept_rows.py`, and 8 more in `tests/test_refs.py` (41), each failing on the code before its fix.
+Like the rest of `tests/`, they stay out of the public repository; CI runs `tools/smoke_test.py`.

@@ -24,8 +24,10 @@ model; a new residue starts whenever the residue name, chain, number or
 insertion code changes from one atom to the next (so 52 and 52A become two
 numbers), and insertion codes are kept. There is no upper limit.
 
-Changes auth_seq_id by default, in _atom_site and in the matching columns of
-_atom_site_anisotrop and _struct_conn. With --label it changes label_seq_id
+Changes auth_seq_id by default, in _atom_site and in the other tables that
+name residues (_struct_conn, _struct_conf, _pdbx_poly_seq_scheme, ...).
+There, residues without atoms (e.g. unobserved ones) get '?': their old
+number may now be another residue's. With --label it changes label_seq_id
 of polymer residues instead; that number links atoms to the sequence in
 _entity_poly_seq, so a warning is printed.
 
@@ -113,9 +115,15 @@ def run(fhandle, start, scheme=None):
             number = _numberer(fields, start)
             where = _atoms.getter(fields.chain, fields.resnum, fields.icode, fields.resname)
 
+    renumbered = {key[0] for key in new_numbers}
+
     def ref_resnum(chain, resnum, icode, resname):
         num = new_numbers.get(_reference_key(chain, resnum, icode, resname))
-        return num if num is not None else new_numbers.get(_reference_key(chain, resnum, icode))
+        if num is None:
+            num = new_numbers.get(_reference_key(chain, resnum, icode))
+        if num is None and chain in renumbered:
+            return '?'  # a residue without atoms (e.g. unobserved): its old number may now be another's
+        return num
 
     # Anisotropic rows follow their atom: models may hold different residues,
     # and then the numbers of model 1 do not fit the others.

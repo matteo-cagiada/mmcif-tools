@@ -18,10 +18,11 @@
 """
 Selects all residues matching the given name(s) in an mmCIF file.
 
-Residue names are matched on auth_comp_id (label_comp_id with --label);
-the names given are upper-cased, as in pdb_selresname. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue names are matched on auth_comp_id (label_comp_id with --label); the
+names given are upper-cased, as in pdb_selresname. Rows of the other tables
+that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selresname -<name>[,<name>...] <cif file>

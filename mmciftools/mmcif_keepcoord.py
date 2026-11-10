@@ -21,9 +21,9 @@ Removes all non-coordinate categories from an mmCIF file.
 Keeps the data_ line, _atom_site and _struct_conn (the mmCIF counterparts of
 the ATOM/HETATM and CONECT records that pdb_keepcoord keeps); every other
 category is removed, _atom_site_anisotrop included (pdb_keepcoord drops
-ANISOU records too). To keep the metadata that edits do not make stale
-(entry, method, unit cell, entities, chains, sequences, chemical
-components), use mmcif_delmeta instead.
+ANISOU records too). To keep the metadata that programs read (entry, method,
+unit cell, entities, chains, sequences, chemical components), use
+mmcif_delmeta instead.
 
 Usage:
     mmcif_keepcoord <cif file>

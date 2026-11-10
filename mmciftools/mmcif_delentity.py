@@ -18,11 +18,12 @@
 Deletes atoms by entity: by entity number (label_entity_id) or by type.
 
 Entity types are polymer, non-polymer (ligands and ions), branched
-(glycans), macrolide and water; see mmcif_selentity. Unlike
-mmcif_delhetatm, this never cuts modified residues (HETATM records inside
-a polymer) out of their chain: -non-polymer,water removes the ligands, ions
-and waters and nothing else. Rows of _atom_site_anisotrop and _struct_conn
-of removed atoms are removed too.
+(glycans), macrolide and water; see mmcif_selentity. Unlike mmcif_delhetatm,
+this never cuts modified residues (HETATM records inside a polymer) out of
+their chain: -non-polymer,water removes the ligands, ions and waters and
+nothing else. Rows of the other tables that name removed atoms, residues or
+chains are removed too (_atom_site_anisotrop, _struct_conn,
+_pdbx_poly_seq_scheme, ...), and ranges such as helices are shortened.
 
 Usage:
     mmcif_delentity -<entity id or type>[,...] <cif file>

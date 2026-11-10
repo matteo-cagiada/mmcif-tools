@@ -24,9 +24,10 @@ end at the last, respectively. As in pdb_selres, residues are matched by
 number only (in every chain and model, with or without insertion code), and
 the step counts residue occurrences in file order.
 
-Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of the
+other tables that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selres -[resid]:[resid]:[step] [--label] <cif file>

@@ -3,10 +3,56 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
-## Unreleased
+## 0.2.0 (2026-11-10): metadata follows the edits
 
-No changes to the tools.
-
+- **The metadata follows the edits.** Every tool keeps the tables that name chains, residues or atoms in step with
+  the atoms, not only `_atom_site_anisotrop` and `_struct_conn`: the sequence schemes, the secondary structure,
+  the sites, the validation reports, the assemblies, model quality (`_ma_qa_metric_local`), the SIFTS mappings of
+  PDBe's updated files, the NCS domains, and more (50 tables).
+  - **Renames** (`mmcif_chain`, `mmcif_rplchain`, `mmcif_reres`, `mmcif_shiftres`, `mmcif_fixinsert`,
+    `mmcif_label2auth`, `mmcif_auth2label`, `mmcif_rplresname`, `mmcif_uniqname`) reach every table. After
+    `mmcif_reres`, residues without atoms get `?` as their author number: their old number may now be another
+    residue's. `mmcif_label2auth` gives them their label ids. `mmcif_rplresname` also renames the residue in the
+    sequences (`_entity_poly_seq`) and its definition (`_chem_comp`, ...), or removes the old definition when the
+    new name already has one.
+  - **Removals** (the `sel` and `del` tools, `mmcif_head`, `mmcif_selaltloc`, `mmcif_intersect`, and the split
+    tools): rows naming removed atoms, residues, chains or molecules are removed, the sequences included; helices,
+    strands and alignments that lose their ends are shortened; lists of chains are pruned; sheets, sites,
+    assemblies, sequence alignments and coordination spheres left without parts are removed; and
+    `_entity.pdbx_number_of_molecules` and the one-letter sequences are updated (lines of up to 80 characters,
+    broken between residues). Rows naming a removed model (`mmcif_selmodel`, `mmcif_splitmodel`) or conformer
+    (`mmcif_selaltloc`) go too, and those naming a kept conformer lose its label, as the atoms do. Residues that had no atoms in the input stay, and so does a
+    position of `_entity_poly_seq` that a kept chain lists without atoms. Atoms listed as never observed
+    (`_pdbx_unobs_or_zero_occ_atoms`) go with their residue. Sequence alignments that name no chain
+    (`_struct_ref_seq` in integrative models) follow the molecule's sequence. A molecule whose list of chains
+    (`_entity_poly.pdbx_strand_id`) misses some of its copies keeps its row when only those are kept, and the
+    list then names them. A residue deleted from the construct (`_struct_ref_seq_dif`, with no number) names
+    only its chain, not the chain's waters. A row of a model (validation reports, cis peptides, base pairs)
+    follows the residues of that model, as `mmcif_delres` and `mmcif_selres` with a step remove other residues
+    in each model. Rows that name residues by their author ids only, with `?` label ids (TLS groups), follow
+    and are shortened by those ids. A modification (`_pdbx_modification_feature`) goes with the atom of its bond
+    (a disulfide's SG, a sugar's C1).
+  - **Cost:** one more reading of the file. The tools that remove atoms take about twice as long (4HHB: 0.06 to
+    0.15 s; a 238,000-atom ribosome, 4V6X: 1.6 to 2.3-3.2 s, with up to 50 MB more memory); renames take 10-25%
+    longer.
+  - **Checked** with the PDBx/mmCIF dictionary (version 5.418, with gemmi and its parent check): every tool's
+    output on the 12 test entries has no error its input does not have, except when no polymer is left, where
+    gemmi reports the empty `_entity_poly_seq`, and `mmcif_keepcoord`, which keeps only the coordinates. The
+    stress test (300 entries and variants, about 60 commands each) was run again with the check; what it found
+    is fixed. Files with two data blocks: only the first one's tables follow. Also checked: that no row is
+    removed without a reason (each row of the input is tagged, and each one removed must name something with no
+    atoms left), and tools run one after another: in either order, twice, a rename and its inverse, and
+    through shell pipes.
+- **`mmcif_validate`** warns about metadata out of step with the atoms, including rows of models with no atoms.
+- **`mmcif_element`** adds a row to `_atom_type` for an element new to the file.
+- **`mmcif_label2auth`**: an unobserved residue whose author number is also a water's or ligand's in the same
+  author chain got that molecule's chain in `_pdbx_poly_seq_scheme` (8PJO); it now gets its own label ids.
+- **`mmcif_uniqname`** names the conformers of an atom apart (S1, S2), as `pdb_uniqname` does; a row of another
+  table naming one conformer now gets that conformer's new name.
+- **`mmcif_delmeta`** is no longer needed to fix stale metadata: it deletes what prediction and simulation programs
+  do not read. It now also keeps the tables the kept ones point to: `_struct_conn_type`, `_pdbx_nonpoly_scheme`
+  and, for EM entries, `_em_image_processing` to `_em_experiment`. The README's "Metadata goes stale" is now
+  "Metadata follows the edits".
 - **DOI:** mmcif-tools is archived on Zenodo, [10.5281/zenodo.23966235](https://doi.org/10.5281/zenodo.23966235)
   (all versions; 0.1.2 is [10.5281/zenodo.23966236](https://doi.org/10.5281/zenodo.23966236)). The README has a
   DOI badge and explains how to cite the software, with a BibTeX entry, and CITATION.cff gives the DOI.

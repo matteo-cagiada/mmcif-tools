@@ -25,9 +25,10 @@ are residue numbers (matched in every chain and model), while the step
 counts residue occurrences in file order, regardless of their number.
 Unlike pdb_delres, a range may start and end at the same residue (-5:5).
 
-Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of
-_atom_site_anisotrop and _struct_conn that refer to removed atoms are
-removed too.
+Residue numbers are auth_seq_id, or label_seq_id with --label. Rows of the
+other tables that name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_delres -[resid]:[resid]:[step] [--label] <cif file>

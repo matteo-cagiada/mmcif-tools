@@ -28,11 +28,13 @@ of:
 
 Unlike mmcif_selhetatm, this keeps modified residues with their chain: they
 are HETATM records inside a polymer (MSE in proteins, PSU and 2MG in tRNA,
-...). Numbers and types can be mixed (-polymer,5); types are
-case-insensitive. Files without an _entity category (some non-PDB files) are
-classified from their atoms: atoms with a label_seq_id are polymer, HOH,
-WAT and DOD are water, and the rest non-polymer. Rows of
-_atom_site_anisotrop and _struct_conn of removed atoms are removed too.
+...). Numbers and types can be mixed (-polymer,5); types are case-
+insensitive. Files without an _entity category (some non-PDB files) are
+classified from their atoms: atoms with a label_seq_id are polymer, HOH, WAT
+and DOD are water, and the rest non-polymer. Rows of the other tables that
+name removed atoms, residues or chains are removed too
+(_atom_site_anisotrop, _struct_conn, _pdbx_poly_seq_scheme, ...), and ranges
+such as helices are shortened.
 
 Usage:
     mmcif_selentity -<entity id or type>[,...] <cif file>

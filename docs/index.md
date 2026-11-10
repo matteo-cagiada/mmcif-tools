@@ -22,7 +22,7 @@ package needs only the Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.1.2, pre-release: 53 available tools**
+**CURRENT VERSION: Version 0.2.0, pre-release: 53 available tools**
 
 ## Tools
 
@@ -46,7 +46,7 @@ The full `--help` text of every tool is in the [tool reference](tools.md).
 | | `mmcif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
 | | `mmcif_selmodel` | Keep models (`-1,3`) |
 | | `mmcif_head` | Keep the first N atoms (`-100`) |
-| | `mmcif_delmeta` | Delete the metadata that edits make stale; keep the rest (entry, method, entities, chains, ...) in step with the atoms (`-all`: atoms only) |
+| | `mmcif_delmeta` | Delete the metadata that prediction and simulation programs do not read; keep the rest (entry, method, entities, chains, ...) in step with the atoms (`-all`: atoms only) |
 | | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`), as `pdb_keepcoord` |
 | | `mmcif_intersect` | Keep the atoms of the first file found in all the others |
 | Edit | `mmcif_chain` / `mmcif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |

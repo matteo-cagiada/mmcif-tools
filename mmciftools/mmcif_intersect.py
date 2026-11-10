@@ -23,8 +23,8 @@ As in pdb_intersect, atoms are judged equal if their name, altloc, residue
 name, residue number, insertion code and chain are the same (auth
 identifiers, or label ones with --label; models are not compared), and
 coordinates are taken from the first file. Unlike pdb_intersect, the output
-is the first file with the other atoms removed (metadata kept; rows of
-_atom_site_anisotrop and _struct_conn of removed atoms removed).
+is the first file with the other atoms removed (metadata kept, in step with
+the atoms left, as with mmcif_selatom).
 
 Usage:
     mmcif_intersect <cif file> <cif file> [...]

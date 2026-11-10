@@ -20,7 +20,7 @@ package needs only the Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 | mmcif_delmeta > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.1.2, pre-release: 53 available tools**
+**CURRENT VERSION: Version 0.2.0, pre-release: 53 available tools**
 
 
 ## Tools
@@ -45,7 +45,7 @@ The full `--help` text of every tool is in the [tool reference](https://matteo-c
 | | `mmcif_selaltloc` | Keep one alternate location (highest occupancy, or `-A`) |
 | | `mmcif_selmodel` | Keep models (`-1,3`) |
 | | `mmcif_head` | Keep the first N atoms (`-100`) |
-| | `mmcif_delmeta` | Delete the metadata that edits make stale; keep the rest (entry, method, entities, chains, ...) in step with the atoms (`-all`: atoms only) |
+| | `mmcif_delmeta` | Delete the metadata that prediction and simulation programs do not read; keep the rest (entry, method, entities, chains, ...) in step with the atoms (`-all`: atoms only) |
 | | `mmcif_keepcoord` | Keep only the coordinates (`_atom_site`, `_struct_conn`), as `pdb_keepcoord` |
 | | `mmcif_intersect` | Keep the atoms of the first file found in all the others |
 | Edit | `mmcif_chain` / `mmcif_rplchain` | Set all chains (`-C`) / rename one chain (`-A:B`) |
@@ -103,16 +103,17 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
 
 ### `mmcif_delmeta`
 
-A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. Most of the rest
-refers to residues by chain and number: validation reports, secondary structure, sequence schemes, binding sites,
-assemblies, and more. The edit tools keep the atoms and their links consistent, but not these tables, so after
-renumbering or deleting residues they describe a structure that is no longer there. Simulation and prediction
-programs rarely read them anyway.
+A PDB entry is mostly metadata: 4HHB has 72 categories, and only a few of them hold the atoms. The rest describes
+the experiment, the validation, the secondary structure, the binding sites, the assemblies, and more. The tools keep
+the tables that name chains, residues or atoms in step with their edits (see
+[Metadata follows the edits](#metadata-follows-the-edits)), but simulation and prediction programs read few of
+them, and some stop at categories they do not expect.
 
 `mmcif_delmeta` deletes that metadata and keeps what is fundamental: the atoms, their links and anisotropic B-factors;
 the entry id, method, resolution and release dates; the unit cell and space group; the entities, chains and
 sequences; the ligands and modified residues; and the chemical components with their atoms and bonds. It also
-brings these tables in step with the atoms: chains, entities and modified residues with no atoms left are removed,
+brings these tables in step with the atoms, for files edited by other programs: chains, entities and modified
+residues with no atoms left are removed,
 the number of molecules and the chains of each entity are recomputed, modified residues get their current author
 numbers, and the table that places each chain's residues on its sequence (`_pdbx_poly_seq_scheme`) is rebuilt.
 For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF.
@@ -121,7 +122,8 @@ For 4HHB that is 18 categories instead of 72, and the file is still valid mmCIF.
 mmcif_fetch 4hhb | mmcif_delentity -non-polymer,water | mmcif_reres -10 | mmcif_reatom -4 | mmcif_delmeta > 4hhb_clean.cif
 ```
 
-We suggest running `mmcif_delmeta` as the last step, after you have completed the structure manipulations.
+We suggest running `mmcif_delmeta` as the last step, after you have completed the structure manipulations, when
+the file goes to a prediction or simulation program.
 
 The kept categories are also those that structure prediction programs read from template or input files (AlphaFold 2
 and 3, ColabFold, OpenFold3, Boltz, Chai-1, Protenix, BioEmu), and MD preparation programs from structures (OpenMM,
@@ -293,9 +295,10 @@ label_seq_id	auth_seq_id	label_comp_id
 4	104	PRO
 ```
 
-The links in `_struct_conn` follow: the bond between the heme's iron and its histidine now names `HIS 187` and
-`HEM 242` in its author columns. `mmcif_reres -101 --label` would renumber the `label_seq_id` instead, and warns
-that this breaks the link between the atoms and the sequence.
+The other tables follow (see [Metadata follows the edits](#metadata-follows-the-edits)): the bond between the
+heme's iron and its histidine in `_struct_conn` now names `HIS 187` and `HEM 242` in its author columns.
+`mmcif_reres -101 --label` would renumber the `label_seq_id` instead, and warns that this breaks the link between
+the atoms and the sequence.
 
 ### Reading your output
 
@@ -308,11 +311,12 @@ that this breaks the link between the atoms and the sequence.
   the edited values, so `diff 4hhb.cif out.cif` shows exactly what changed.
 - **Look at it:** PyMOL, ChimeraX and Mol* open mmCIF files directly.
 
-### Metadata goes stale: finish with mmcif_delmeta
+### Metadata follows the edits
 
-The edit tools keep the atoms in step with their anisotropic B-factors (`_atom_site_anisotrop`) and their links
-(`_struct_conn`). The other tables that name chains or residues are left as they were. After `mmcif_reres -101`,
-the table that places each residue on the sequence still has the old numbers:
+Besides the atoms, a PDB entry has dozens of tables that name chains, residues or atoms: the sequence schemes, the
+secondary structure, the binding sites, the validation reports, the assemblies, and more. Every tool keeps them in
+step with its edits. After `mmcif_reres -101`, the table that places each residue on the sequence has the new
+numbers:
 
 ```bash
 mmcif_selchain -A 4hhb.cif | mmcif_reres -101 | mmcif_cat -_pdbx_poly_seq_scheme.seq_id,mon_id,pdb_seq_num,auth_seq_num | head -3
@@ -320,14 +324,24 @@ mmcif_selchain -A 4hhb.cif | mmcif_reres -101 | mmcif_cat -_pdbx_poly_seq_scheme
 
 ```text
 seq_id	mon_id	pdb_seq_num	auth_seq_num
-1	VAL	1	1
-2	LEU	2	2
+1	VAL	101	101
+2	LEU	102	102
 ```
 
-and so do the secondary structure (`_struct_conf`), the validation reports and the binding sites. Ending the
-pipeline with `mmcif_delmeta` deletes the tables that went stale and brings the ones it keeps in step with the atoms:
-with `| mmcif_delmeta` before `mmcif_cat`, the same command prints `101` and `102`. Chain A of 4HHB then has 18
-categories instead of 72. See [`mmcif_delmeta`](#mmcif_delmeta) for what it keeps.
+- **Renaming** a chain, a residue number, a residue or an atom renames it in every table, and a renamed residue
+  keeps its definition (`_chem_comp`) under the new name. After `mmcif_reres`, residues without atoms (unobserved
+  ones) get `?`: their old number may now be another residue's.
+- **Removing** atoms removes the rows that name them. A residue, a chain or a molecule goes from every table when
+  none of its atoms is left, the sequences included; a helix or strand that loses its ends is shortened (after
+  `mmcif_delres -1:5`, the first helix of 4HHB starts at residue 6); the lists of chains (assemblies, the chains of
+  each molecule) and the counts follow. Rows of removed models (`mmcif_selmodel`) and conformers
+  (`mmcif_selaltloc`) go too. Residues that had no atoms in the first place stay.
+- **Checking:** `mmcif_validate` warns about rows out of step with the atoms, e.g. in a file edited by another
+  program.
+
+`mmcif_assembly`, `mmcif_merge` and `mmcif_mkensemble` make new chains; the metadata keeps describing the chains of
+the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables: [`mmcif_delmeta`](#mmcif_delmeta)
+deletes the others.
 
 ### Entities
 
