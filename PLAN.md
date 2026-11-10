@@ -1089,3 +1089,31 @@ against the input's first 100 atoms. Peak memory is at most 9 MB higher, and up 
 **Tests:** `tests/test_chains.py` (TestKeptRows, TestChains, TestPipes, on the entries under 500 kB) with its
 checker `tests/kept_rows.py`, and 8 more in `tests/test_refs.py` (41), each failing on the code before its fix.
 Like the rest of `tests/`, they stay out of the public repository; CI runs `tools/smoke_test.py`.
+
+## 17. Manual tests after the release (2026-11-10)
+
+Three tests for the machines mmcif-tools is installed on, run on a clean install of 0.2.0 from PyPI: a small file
+written inline (`mmcif_validate`, `mmcif_selchain -A | mmcif_delhetatm | mmcif_tidy`, `mmcif_wc`, `mmcif_topdb`),
+4HHB from the RCSB (`mmcif_info`, `mmcif_wc`, a pipeline, `mmcif_tofasta`, a gzipped input), and
+`tools/smoke_test.py`. They found two things.
+
+**The assembly count did not follow the removals.** After `mmcif_selchain -A` on 4HHB, `_pdbx_struct_assembly_gen`
+listed chain A only, but `_pdbx_struct_assembly.oligomeric_count` was still 4 and `oligomeric_details`
+`tetrameric`. In the 12 entries of `tests/real`, the count is the number of polymer chains the assembly's lists
+name, times the copies each list's `oper_expression` makes; branched sugars, ligands and waters do not count (2RH1:
+1 with its sugar, 6VXX: 3 with 15 glycan chains). Across the PDB (378,945 assemblies, from PDBj Mine), the details
+are `monomeric` to `eicosameric` for 1 to 20 chains (11 to 20 also as `11-meric`, ..., less often), then
+`21-meric`, `24-meric`, ...; a few are free text (`helical`).
+
+- **Now:** when an assembly loses polymer chains, its count becomes the number its lists still name, if it was that
+  number before (else it is left as it is). Its details become the word for the new count when they were the word
+  (or `n-meric`) for the old one, whatever the case; free text stays. With no polymer left: 0 and `?`. An assembly
+  whose lists name nothing left still goes (§15). `parse_expression` moved from `mmcif_assembly` to `_refs`.
+- **Left as they were:** the areas and free energy of `_pdbx_struct_assembly_prop` (PISA, on the deposited
+  assembly). Removing any atom, a heme included, changes them, and they cannot be recomputed; like the statistics
+  of `_refine`, they describe the deposited entry.
+- **Checked:** `TestAssemblies` in `tests/test_refs.py` (5 tests, 4 failing on the old code: operation products, a
+  sugar, free-text details, a count that is not the number of polymer chains, no polymer left, split files) and
+  4HHB in `TestRemovals`. On the 12 entries, 6 removal tools: 53 assemblies kept, 25 counts changed, each equal to
+  the polymer chains its lists name after the edit. Unit suite: 256 tests pass; the smoke test is clean on a fresh
+  install of the tree.

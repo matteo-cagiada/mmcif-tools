@@ -5,6 +5,11 @@ command names and options may still change.
 
 ## Unreleased
 
+- **The assembly count follows the removals.** When an assembly loses polymer chains,
+  `_pdbx_struct_assembly.oligomeric_count` becomes the number of polymer chains its lists still name (times their
+  copies), and `oligomeric_details` the PDB's word for it (`monomeric`, ..., `eicosameric`, then `21-meric`, ...)
+  when it was the word for the old count. In 0.2.0, `mmcif_selchain -A` on 4HHB left "4, tetrameric" for one chain.
+  The surface areas of `_pdbx_struct_assembly_prop`, computed on the deposited assembly, are kept as they are.
 - **In the browser:** pipelines no longer end with `mmcif_delmeta` by default. Since 0.2.0 the tools keep every
   table in step with the edits, so tick it only to delete the tables that prediction and simulation programs do
   not read. A link to a pipeline that ends with `mmcif_delmeta` still ticks it.

@@ -589,6 +589,55 @@ RANGE_SHIFT = {'_struct_ref_seq': ('db_align_beg', 'db_align_end')}  # numbers t
 # follow _entity_poly_seq. Table -> (its chain column, its position columns).
 CHAINLESS = {'_struct_ref_seq': ('pdbx_strand_id', ('seq_align_beg', 'seq_align_end')),
              '_struct_ref_seq_dif': ('pdbx_pdb_strand_id', ('seq_num',))}
+# The PDB's words for an assembly of 1 to 20 polymer chains (_pdbx_struct_assembly.oligomeric_details); above 20,
+# '21-meric', '24-meric', ...
+OLIGOMERS = ('monomeric', 'dimeric', 'trimeric', 'tetrameric', 'pentameric', 'hexameric', 'heptameric', 'octameric',
+             'nonameric', 'decameric', 'undecameric', 'dodecameric', 'tridecameric', 'tetradecameric',
+             'pentadecameric', 'hexadecameric', 'heptadecameric', 'octadecameric', 'nonadecameric', 'eicosameric')
+_GROUP = re.compile(r'\(([^()]*)\)')
+
+
+def parse_expression(text):
+    """'(1-3)(X0)' -> [['1', '2', '3'], ['X0']]; '1,2' -> [['1', '2']]."""
+    text = ''.join(text.split())
+    groups = _GROUP.findall(text) if text.startswith('(') else [text]
+    if text.startswith('(') and ''.join('({})'.format(g) for g in groups) != text:
+        raise _cif.CIFError('Invalid operation expression: {!r}'.format(text))
+    out = []
+    for group in groups:
+        ids = []
+        for part in group.split(','):
+            first, dash, last = part.partition('-')
+            if dash:
+                try:
+                    ids.extend(str(n) for n in range(int(first), int(last) + 1))
+                except ValueError:
+                    raise _cif.CIFError('Invalid operation range: {!r}'.format(part))
+            elif part:
+                ids.append(part)
+        if not ids:
+            raise _cif.CIFError('Invalid operation expression: {!r}'.format(text))
+        out.append(ids)
+    return out
+
+
+def _operations(expression):
+    """How many copies an oper_expression makes (a product of its groups), or None."""
+    try:
+        groups = parse_expression(expression or '')
+    except _cif.CIFError:
+        return None
+    count = 1
+    for ids in groups:
+        count *= len(ids)
+    return count
+
+
+def _oligomer(count):
+    """The PDB's word for an assembly of `count` polymer chains ('?' for none)."""
+    if count < 1:
+        return '?'
+    return OLIGOMERS[count - 1] if count <= len(OLIGOMERS) else '{}-meric'.format(count)
 
 
 def _int(value):
@@ -809,6 +858,9 @@ class View:
         self.removal, self.owner, self.have = removal, owner, removal.have
         self.active = any(owner not in owners for owners in removal.sets)
         self.gone, self.left, self.sequences, self._loops, self._residues = {}, {}, {}, {}, {}
+        # assembly id -> [(copies, chains listed, chains kept)] of its _pdbx_struct_assembly_gen rows; and the
+        # assemblies that lose polymer chains: id -> (polymer chains before, after)
+        self.assemblies, self.oligomers = {}, {}
         self.categories = FOLLOWING
 
     def _gone(self, owners):
@@ -847,6 +899,8 @@ class View:
                         return False
                     if left is not None and count and count in ev and _int(ev[count]) not in (None, left):
                         ev[count] = str(left)
+            if category == '_pdbx_struct_assembly' and self.oligomers:
+                self._oligomeric(ev)
         table = TABLES.get(category)
         if table is None:
             return True
@@ -1002,6 +1056,20 @@ class View:
         if count != total and ev['pdbx_number_of_molecules'] != str(count):
             ev['pdbx_number_of_molecules'] = str(count)
 
+    def _oligomeric(self, ev):
+        """_pdbx_struct_assembly.oligomeric_count of an assembly that lost
+        polymer chains, and its oligomeric_details when that is the PDB's word
+        for the count ('tetrameric', '24-meric'). A count that is not the
+        number of polymer chains its lists name is left as it is."""
+        counts = self.oligomers.get(ev.get('id'))
+        if counts is None or _int(ev.get('oligomeric_count')) != counts[0]:
+            return
+        before, after = counts
+        ev['oligomeric_count'] = str(after)
+        details = ev.get('oligomeric_details')
+        if details is not None and details.strip().lower() in (_oligomer(before), '{}-meric'.format(before)):
+            ev['oligomeric_details'] = _oligomer(after)
+
     def _one_letter(self, ev, entity):
         """The one-letter sequences without the removed positions."""
         numbers = self.sequences[entity]
@@ -1033,16 +1101,24 @@ def _parents(removal, views):
         return
     parents = {(p, cols) for p, cols, _, _ in CHILDREN}
     counted = {(c, cols) for _, _, c, cols, _ in EMPTIED}
-    tables = {t for t, _ in parents | counted}
+    tables = {t for t, _ in parents | counted} | {'_struct_asym', '_entity'}
     entities = {e for e, n in removal.positions}
     if any(view._gone(owners) for view in views for owners in set(removal.positions.values())):
         tables.add('_entity_poly_seq')
     numbers = {}  # entity -> its positions, in order
     kept = {}  # (view, table, key columns) -> the keys of rows kept (a key shared with a kept row stays)
+    kinds, molecule_of = {}, {}  # entity -> its type; label chain -> its entity (for the polymer chains)
+    label_chains = removal.chains['label_asym']
     for ev in _cif.parse(removal.source.lines(), tuple(tables)):
         if type(ev) is not _cif.Row:
             continue
         category = ev.loop.category.lower()
+        if category == '_entity':
+            kinds[ev.get('id')] = (ev.get('type') or '').lower()
+            continue
+        if category == '_struct_asym':
+            molecule_of[ev.get('id')] = ev.get('entity_id')
+            continue
         if category == '_struct_ref':
             removal.alignments[('ref', ev.get('id'))] = ev.get('entity_id')
         elif category == '_struct_ref_seq':
@@ -1055,8 +1131,14 @@ def _parents(removal, views):
                     here.append(number)
             continue
         candidates = removal.candidates(ev)
+        if category == '_pdbx_struct_assembly_gen':
+            listed = [n.strip() for n in (ev.get('asym_id_list') or '').split(',') if n.strip() not in NULLS]
+            copies = _operations(ev.get('oper_expression'))
         for view in views:
             fate = (candidates is None or view.owner in candidates) and view._fate(ev, decide_only=True)
+            if category == '_pdbx_struct_assembly_gen':
+                left = [n for n in listed if not view._gone(label_chains.get(n))] if fate else []
+                view.assemblies.setdefault(ev.get('assembly_id'), []).append((copies, listed, left))
             for table, cols in parents:
                 if table == category:
                     key = tuple(ev.get(c) for c in cols)
@@ -1079,6 +1161,15 @@ def _parents(removal, views):
         for entity, here in numbers.items():
             if any(view._gone(removal.positions.get((entity, n))) for n in here):
                 view.sequences[entity] = here
+    polymers = {chain for chain, entity in molecule_of.items() if kinds.get(entity) == 'polymer'}
+    for view in views:  # oligomeric_count: the polymer chains of an assembly, times their copies
+        for assembly, generated in view.assemblies.items():
+            if any(copies is None for copies, _, _ in generated):
+                continue
+            before = sum(copies * sum(c in polymers for c in listed) for copies, listed, _ in generated)
+            after = sum(copies * sum(c in polymers for c in left) for copies, _, left in generated)
+            if before != after:
+                view.oligomers[assembly] = (before, after)
 
 
 FOLLOWING = tuple(dict.fromkeys(
