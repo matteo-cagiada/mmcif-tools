@@ -48,14 +48,13 @@ This program is part of the mmcif-tools suite.
 """
 
 import itertools
-import re
 import sys
 
 from mmciftools import _atoms, _cif, _cli
+from mmciftools._refs import parse_expression
 
 NULLS = ('.', '?')
 IDENTITY = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)), (0.0, 0.0, 0.0)
-_GROUP = re.compile(r'\(([^()]*)\)')
 
 
 def check_input(args):
@@ -64,30 +63,6 @@ def check_input(args):
     if option is not None and not option.strip():
         _cli.fail(__doc__, 'Invalid assembly id: {!r}'.format(option))
     return fhandle, option or '1'
-
-
-def parse_expression(text):
-    """'(1-3)(X0)' -> [['1', '2', '3'], ['X0']]; '1,2' -> [['1', '2']]."""
-    text = ''.join(text.split())
-    groups = _GROUP.findall(text) if text.startswith('(') else [text]
-    if text.startswith('(') and ''.join('({})'.format(g) for g in groups) != text:
-        raise _cif.CIFError('Invalid operation expression: {!r}'.format(text))
-    out = []
-    for group in groups:
-        ids = []
-        for part in group.split(','):
-            first, dash, last = part.partition('-')
-            if dash:
-                try:
-                    ids.extend(str(n) for n in range(int(first), int(last) + 1))
-                except ValueError:
-                    raise _cif.CIFError('Invalid operation range: {!r}'.format(part))
-            elif part:
-                ids.append(part)
-        if not ids:
-            raise _cif.CIFError('Invalid operation expression: {!r}'.format(text))
-        out.append(ids)
-    return out
 
 
 def _operation(row):

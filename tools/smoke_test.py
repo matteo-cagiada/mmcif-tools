@@ -19,8 +19,9 @@
 Checks an installation of mmcif-tools: every command answers --help, and a few
 pipelines give the expected results on a small structure written here.
 
-Run it after `python -m pip install .`; it uses the installed commands (no
-network, no other files). The exit status is 1 if a check fails.
+Run it after `python -m pip install .`, with the Python of that installation:
+it runs the commands pip installed for that Python, not others found first on
+the PATH (no network, no other files). The exit status is 1 if a check fails.
 
 Usage:
     python tools/smoke_test.py
@@ -32,6 +33,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from importlib import metadata
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -89,20 +91,40 @@ CHECKS = [
 ]
 
 
+def installed():
+    """(version, {command: path}) of the mmcif-tools installed for this
+    Python, from the files pip recorded; (None, {}) when there is none."""
+    try:
+        dist = metadata.distribution('mmcif-tools')
+    except metadata.PackageNotFoundError:
+        return None, {}
+    paths = {}
+    for f in dist.files or ():
+        name = os.path.basename(str(f))
+        if name.lower().endswith('.exe'):
+            name = name[:-4]
+        if name.startswith('mmcif_') and '.' not in name and f.parent.name != 'mmciftools':
+            paths[name] = os.path.normpath(str(dist.locate_file(f)))
+    return dist.version, paths
+
+
+VERSION, INSTALLED = installed()
+
+
 def commands():
-    """The mmcif_* commands listed in pyproject.toml (or installed next to python)."""
+    """The mmcif_* commands listed in pyproject.toml (or installed for this Python)."""
     path = os.path.join(ROOT, 'pyproject.toml')
     if os.path.exists(path):
         with open(path, encoding='utf-8') as fh:
             table = fh.read().split('[project.scripts]', 1)[1].split('\n[', 1)[0]
         return re.findall(r'^(mmcif_\w+)\s*=', table, flags=re.M)
-    return sorted({n.split('.')[0] for n in os.listdir(os.path.dirname(sys.executable)) if n.startswith('mmcif_')})
+    return sorted(INSTALLED)
 
 
 def run(argv, text):
-    exe = shutil.which(argv[0])
+    exe = INSTALLED.get(argv[0]) or (None if INSTALLED else shutil.which(argv[0]))
     if exe is None:
-        return 127, '', '{} is not installed (run: python -m pip install .)'.format(argv[0])
+        return 127, '', '{} is not installed for this Python (run: python -m pip install .)'.format(argv[0])
     proc = subprocess.run([exe] + argv[1:], input=text.encode(), stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE)
     return proc.returncode, proc.stdout.decode(), proc.stderr.decode()
@@ -110,6 +132,11 @@ def run(argv, text):
 
 def main():
     failed = 0
+    if VERSION is None:
+        print('mmcif-tools is not installed for {} (run: python -m pip install .)'.format(sys.executable))
+        return 1
+    where = sorted({os.path.dirname(p) for p in INSTALLED.values()})
+    print('mmcif-tools {} for {}, commands in {}'.format(VERSION, sys.executable, ', '.join(where) or '?'))
     names = commands()
     for name in names:
         code, out, err = run([name, '--help'], '')
