@@ -1,0 +1,17 @@
+{#- The documentation's theme, extended (zensical.toml: custom_dir): a bar at the top of every page with the same
+    breadcrumb as the website's other pages (web/index.html, web/app/index.html): the author's main page, then the
+    mmcif-tools page. -#}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  <style>
+    .md-banner .crumbs { opacity: 0.8; }
+    .md-banner .crumbs a { color: inherit; text-decoration: none; }
+    .md-banner .crumbs a:hover, .md-banner .crumbs a:focus-visible { text-decoration: underline; }
+    .md-banner .crumbs .sep { margin: 0 0.4em; opacity: 0.6; }
+  </style>
+{% endblock %}
+
+{% block announce %}
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="https://matteo-cagiada.github.io/">Matteo Cagiada</a><span class="sep">/</span><a href="https://matteo-cagiada.github.io/mmcif-tools/">mmcif-tools</a><span class="sep">/</span><span aria-current="page">documentation</span></nav>
+{% endblock %}
