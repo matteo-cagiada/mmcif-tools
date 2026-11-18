@@ -3,6 +3,16 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
+## Unreleased
+
+- **`mmcif_validate` warns when the file does not describe its molecules**: a missing core table (`_entity`,
+  `_struct_asym`, `_chem_comp`, and for polymers `_entity_poly`, `_entity_poly_seq` and `_pdbx_poly_seq_scheme`) or
+  `_atom_site.label_entity_id` column, and entities, chains, polymer residues or residue types of the atoms that these
+  tables do not list (a label chain listed for several molecules too). Files written by other programs often lack
+  them, and structure prediction programs read them. They are warnings, so the exit status does not change. PDB
+  entries and AlphaFold DB models have none; the output of `mmcif_keepcoord` (atoms only) and `--label` renumbering
+  (residues no longer at their place in `_entity_poly_seq`) get them.
+
 ## 0.2.1 (2026-11-10): the assembly count follows the removals
 
 - **The assembly count follows the removals.** When an assembly loses polymer chains,

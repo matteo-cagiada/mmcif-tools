@@ -122,7 +122,9 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
   `mmcif_selentity -polymer 4hhb.cif | mmcif_tofasta -multi`.
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
-- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
+- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables, and warns
+  when the file does not describe its molecules (entities, chains, sequences, residue types), as files written by
+  other programs often do.
 
 #### Files for prediction and MD programs
 
@@ -316,7 +318,8 @@ seq_id	mon_id	pdb_seq_num	auth_seq_num
   each molecule) and the counts follow. Rows of removed models (`mmcif_selmodel`) and conformers
   (`mmcif_selaltloc`) go too. Residues that had no atoms in the first place stay.
 - **Checking:** `mmcif_validate` warns about rows out of step with the atoms, e.g. in a file edited by another
-  program.
+  program, and about atoms that the core tables (`_entity`, `_struct_asym`, `_entity_poly_seq`,
+  `_pdbx_poly_seq_scheme`, `_chem_comp`) do not describe, or those tables missing.
 
 `mmcif_assembly`, `mmcif_merge` and `mmcif_mkensemble` make new chains; the metadata keeps describing the chains of
 the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables:

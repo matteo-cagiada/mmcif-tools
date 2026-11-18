@@ -1123,3 +1123,33 @@ are `monomeric` to `eicosameric` for 1 to 20 chains (11 to 20 also as `11-meric`
 the first ones on the PATH: with a venv's Python and miniconda's 0.1.0 first on the PATH, it ran 0.1.0's commands
 and passed. It now runs the commands pip recorded for that Python's mmcif-tools (its RECORD), prints the version and
 the folder of the commands, and fails when that Python has no mmcif-tools.
+
+## 18. Molecules the file does not describe (2026-11-16)
+
+Files written by other programs often hold only `_atom_site`, sometimes without label ids. Before this, nothing
+reported it: `mmcif_validate` called a file valid with atoms alone (only `_atom_site` is required), and
+`mmcif_keepcat -_atom_site` on 4HHB passed with no warning. No tool rebuilds the core tables either:
+`mmcif_delmeta` re-adds `_pdbx_poly_seq_scheme` when the entity and sequence tables are there, `mmcif_element`
+fills in elements, and `mmcif_topdb | mmcif_frompdb` assigns label ids (columns only, and only for structures that
+fit the PDB format).
+
+### 18.1 `mmcif_validate` reports it (done)
+
+New warnings (the exit status does not change), checked in the same reading of the file, per data block with atoms:
+
+- **A missing core table:** `_entity`, `_struct_asym`, `_chem_comp`, and when there are polymers (atoms with a
+  `label_seq_id`, or an entity of type polymer) `_entity_poly`, `_entity_poly_seq` and `_pdbx_poly_seq_scheme`; or no
+  `_atom_site.label_entity_id` column.
+- **Atoms the tables do not describe:** an entity of the atoms not in `_entity`; a chain (`label_asym_id`) not in
+  `_struct_asym`, or with another entity there, or listed there for several molecules; a residue of a polymer entity
+  (entity, `label_seq_id`, residue type) not in `_entity_poly_seq`, or (chain, number, type) not in
+  `_pdbx_poly_seq_scheme`; a residue type not in `_chem_comp`. Branched molecules and ligands are not looked for in
+  the polymer tables.
+
+**Checked:** the 12 entries of `tests/real` (X-ray, NMR, DNA, glycans, a ribosome, an AlphaFold DB model) have no
+warning. Every tool call of the suite on the entries under 1 MB, with and without `--label`, gets the new warnings
+only where the file is really incomplete: `mmcif_keepcoord` (atoms only), `mmcif_reres --label` and
+`mmcif_shiftres --label` (residues no longer at their place in `_entity_poly_seq`; `mmcif_shiftres` already warns
+when it runs), and `mmcif_chain --label` (one label chain for every molecule). 4V6X takes 4.63 s against 4.46 s.
+`TestValidateMolecules` in `tests/test_refs.py` (5 tests on a small hand-written file) and 2 more on 4HHB in
+`TestValidate`; 6 of them fail on the code before. Unit suite: 263 tests pass.

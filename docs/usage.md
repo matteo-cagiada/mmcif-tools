@@ -49,7 +49,9 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
   `mmcif_selentity -polymer 4hhb.cif | mmcif_tofasta -multi`.
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
-- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
+- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables, and warns
+  when the file does not describe its molecules (entities, chains, sequences, residue types), as files written by
+  other programs often do.
 
 ### Files for prediction and MD programs
 

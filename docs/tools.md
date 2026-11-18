@@ -1541,6 +1541,17 @@ _pdbx_poly_seq_scheme, _pdbx_validate_*, ...) whose author ids differ from
 those of the atoms with the same label ids, or that name atoms or residues
 the file does not have (tables of missing residues aside).
 
+Warnings also for molecules the file does not describe, which structure
+prediction programs read (files written by other programs often lack them):
+
+    - a missing core table: _entity (the molecules), _struct_asym (the
+      chains), _chem_comp (the residue types), and for polymers
+      _entity_poly, _entity_poly_seq (the sequences) and
+      _pdbx_poly_seq_scheme (the residues along them); or a missing
+      _atom_site.label_entity_id column
+    - an entity, a chain (label_asym_id), a polymer residue or a residue
+      type of the atoms that these tables do not list
+
 Prints one line per problem (the first 20 of each kind) and a summary.
 The exit status is 1 if there are errors, 0 otherwise.
 

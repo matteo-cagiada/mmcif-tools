@@ -40,6 +40,17 @@ _pdbx_poly_seq_scheme, _pdbx_validate_*, ...) whose author ids differ from
 those of the atoms with the same label ids, or that name atoms or residues
 the file does not have (tables of missing residues aside).
 
+Warnings also for molecules the file does not describe, which structure
+prediction programs read (files written by other programs often lack them):
+
+    - a missing core table: _entity (the molecules), _struct_asym (the
+      chains), _chem_comp (the residue types), and for polymers
+      _entity_poly, _entity_poly_seq (the sequences) and
+      _pdbx_poly_seq_scheme (the residues along them); or a missing
+      _atom_site.label_entity_id column
+    - an entity, a chain (label_asym_id), a polymer residue or a residue
+      type of the atoms that these tables do not list
+
 Prints one line per problem (the first 20 of each kind) and a summary.
 The exit status is 1 if there are errors, 0 otherwise.
 
@@ -64,6 +75,117 @@ SCHEME_FIELDS = (('atom name', 'auth_atom_id', 'label_atom_id'),
                  ('residue name', 'auth_comp_id', 'label_comp_id'),
                  ('chain', 'auth_asym_id', 'label_asym_id'),
                  ('residue number', 'auth_seq_id', 'label_seq_id'))
+# The tables that describe the molecules of the atoms, and what each one is missing tells.
+CORE_TABLES = {
+    '_entity': 'the molecules (entities) of the atoms are not described',
+    '_struct_asym': 'the chains (label_asym_id) of the atoms are not described',
+    '_chem_comp': 'the residue types are not described',
+    '_entity_poly': 'the polymers are not described (type, one-letter sequence)',
+    '_entity_poly_seq': 'the sequences of the polymers are not given',
+    '_pdbx_poly_seq_scheme': 'the residues of the polymers are not placed along their sequences',
+}
+POLYMER_TABLES = ('_entity_poly', '_entity_poly_seq', '_pdbx_poly_seq_scheme')
+
+
+class Molecules:
+    """What the atoms of a data block name (entities, chains, polymer
+    residues, residue types) and what its core tables describe."""
+
+    def __init__(self):
+        self.tables = set()  # the core tables present
+        self.kinds = {}  # _entity: id -> type
+        self.chains = {}  # _struct_asym: label_asym_id -> its entity ids (one, unless the id is repeated)
+        self.sequence = set()  # _entity_poly_seq: (entity, num, mon_id)
+        self.scheme = set()  # _pdbx_poly_seq_scheme: (asym_id, seq_id, mon_id)
+        self.components = set()  # _chem_comp: id
+        self.atoms = False
+        self.no_entity_column = None  # line of an _atom_site loop without label_entity_id
+        self.entities, self.atom_chains, self.residues, self.types = {}, {}, {}, {}  # -> first atom line
+        self.positions = None
+        self.last = None
+
+    def table_row(self, category, row):
+        get = row.get
+        if category == '_entity':
+            self.kinds[get('id')] = (get('type') or '').lower()
+        elif category == '_struct_asym':
+            self.chains.setdefault(get('id'), []).append(get('entity_id'))
+        elif category == '_entity_poly_seq':
+            self.sequence.add((get('entity_id'), get('num'), get('mon_id')))
+        elif category == '_pdbx_poly_seq_scheme':
+            self.scheme.add((get('asym_id'), get('seq_id'), get('mon_id')))
+        elif category == '_chem_comp':
+            self.components.add(get('id'))
+
+    def atom_loop(self, loop):
+        self.atoms = True
+        self.last = None
+        if 'label_entity_id' not in loop:
+            self.no_entity_column = loop.lineno
+        comp = 'label_comp_id' if 'label_comp_id' in loop else 'auth_comp_id'
+        self.positions = tuple(loop.index(c) if c in loop else None
+                               for c in ('label_entity_id', 'label_asym_id', 'label_seq_id', comp))
+
+    def atom(self, values, line):
+        key = tuple(None if p is None else values[p] for p in self.positions)
+        if key == self.last:
+            return
+        self.last = key
+        entity, chain, number, comp = (None if v in NULLS else v for v in key)
+        if entity is not None:
+            self.entities.setdefault(entity, line)
+        if chain is not None:
+            self.atom_chains.setdefault((chain, entity), line)
+        if number is not None and chain is not None:
+            self.residues.setdefault((entity, chain, number, comp), line)
+        if comp is not None:
+            self.types.setdefault(comp, line)
+
+    def check(self, report):
+        """Add the warnings of a data block with atoms."""
+        if not self.atoms:
+            return
+        polymers = bool(self.residues) or 'polymer' in self.kinds.values()
+        for table, why in CORE_TABLES.items():
+            if table not in self.tables and (polymers or table not in POLYMER_TABLES):
+                report.add('WARNING', 'core table', 'no {}: {}'.format(table, why))
+        if self.no_entity_column is not None:
+            report.add('WARNING', 'core table', 'line {}: _atom_site has no label_entity_id: the atoms are not '
+                       'linked to their molecules'.format(self.no_entity_column))
+        if '_entity' in self.tables:
+            for entity, line in self.entities.items():
+                if entity not in self.kinds:
+                    report.add('WARNING', 'entity', 'line {}: entity {} of the atoms is not in _entity'.format(
+                        line, entity))
+        if '_struct_asym' in self.tables:
+            for chain, entities in self.chains.items():
+                if len(entities) > 1:
+                    report.add('WARNING', 'chain', 'chain {} is listed {} times in _struct_asym (entities {}): a '
+                               'chain (label_asym_id) names one molecule'.format(chain, len(entities),
+                                                                                 ', '.join(dict.fromkeys(entities))))
+            for (chain, entity), line in self.atom_chains.items():
+                listed = self.chains.get(chain)
+                if listed is None:
+                    report.add('WARNING', 'chain', 'line {}: chain {} of the atoms is not in _struct_asym'.format(
+                        line, chain))
+                elif entity is not None and len(listed) == 1 and listed[0] not in NULLS and listed[0] != entity:
+                    report.add('WARNING', 'chain', 'line {}: chain {} is entity {} in the atoms, {} in '
+                               '_struct_asym'.format(line, chain, entity, listed[0]))
+        for (entity, chain, number, comp), line in self.residues.items():
+            if self.kinds.get(entity, 'polymer') != 'polymer':
+                continue  # a branched molecule (glycan) or a ligand: no sequence
+            if '_entity_poly_seq' in self.tables and entity is not None and \
+                    (entity, number, comp) not in self.sequence:
+                report.add('WARNING', 'sequence', 'line {}: residue {} {} of chain {} is not in the sequence of '
+                           'entity {} (_entity_poly_seq)'.format(line, number, comp, chain, entity))
+            if '_pdbx_poly_seq_scheme' in self.tables and (chain, number, comp) not in self.scheme:
+                report.add('WARNING', 'scheme', 'line {}: residue {} {} of chain {} is not in '
+                           '_pdbx_poly_seq_scheme'.format(line, number, comp, chain))
+        if '_chem_comp' in self.tables:
+            for comp, line in self.types.items():
+                if comp not in self.components:
+                    report.add('WARNING', 'component', 'line {}: residue type {} is not in _chem_comp'.format(
+                        line, comp))
 
 
 def check_input(args):
@@ -120,12 +242,14 @@ def validate(fhandle):
     """Return a Report on the file."""
     report = Report()
     source = _atoms.as_source(fhandle)
-    blocks, seen_atoms = 0, False
+    blocks, seen_atoms, molecules = 0, False, None
     try:
         for ev in _cif.parse(source.lines(), _cif.ALL):
             etype = type(ev)
             if etype is _cif.Row:
                 if kind != _atoms.ATOM_SITE:
+                    if kind in CORE_TABLES:
+                        molecules.table_row(kind, ev)
                     continue
                 values, line = ev.values, ev.lineno
                 for column, pos in numbers:
@@ -153,10 +277,14 @@ def validate(fhandle):
                     if atom_id in ids:
                         report.add('ERROR', 'duplicate id', 'line {}: atom id {} used twice'.format(line, atom_id))
                     ids.add(atom_id)
+                molecules.atom(values, line)
             elif etype is _cif.Loop:
                 kind = ev.category.lower()
+                if kind in CORE_TABLES:
+                    molecules.tables.add(kind)
                 if kind == _atoms.ATOM_SITE:
                     seen_atoms = True
+                    molecules.atom_loop(ev)
                     _check_columns(ev, report)
                     numbers = [(c, ev.index(c)) for c in NUMBERS if c in ev]
                     integers = [(c, ev.index(c)) for c in INTEGERS if c in ev]
@@ -165,11 +293,15 @@ def validate(fhandle):
             elif etype is _cif.LoopEnd:
                 kind = None
             elif etype is _cif.DataBlock:
+                if molecules is not None:
+                    molecules.check(report)
                 blocks += 1
-                ids, kind = set(), None
+                ids, kind, molecules = set(), None, Molecules()
     except _cif.CIFError as err:
         report.add('ERROR', 'syntax', 'syntax: {}'.format(err))
         return report
+    if molecules is not None:
+        molecules.check(report)
     if not blocks:
         report.add('ERROR', 'no data', 'no data_ block')
     elif not seen_atoms:
