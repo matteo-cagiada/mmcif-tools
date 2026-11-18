@@ -57,7 +57,7 @@ GROUPS = [
     ('Identifiers', ['label2auth', 'auth2label']),
     ('Models, files and assemblies', ['splitchain', 'splitmodel', 'mkensemble', 'chkensemble',
                                       'merge', 'assembly']),
-    ('Categories and data blocks', ['cat', 'delcat', 'keepcat', 'blocks']),
+    ('Categories and data blocks', ['cat', 'delcat', 'keepcat', 'rebuildmeta', 'blocks']),
     ('Inspect / format', ['info', 'wc', 'tofasta', 'gap', 'sort', 'tidy', 'validate']),
 ]
 

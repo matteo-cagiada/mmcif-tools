@@ -1,6 +1,6 @@
 # mmcif-tools: tool reference
 
-Version 0.2.1, 53 tools. Generated from the tools' `--help` texts by `python tools/make_docs.py`; do not edit by hand.
+Version 0.2.1, 54 tools. Generated from the tools' `--help` texts by `python tools/make_docs.py`; do not edit by hand.
 
 | Group | Tools |
 |---|---|
@@ -9,7 +9,7 @@ Version 0.2.1, 53 tools. Generated from the tools' `--help` texts by `python too
 | Edit | [`mmcif_chain`](#mmcif_chain), [`mmcif_rplchain`](#mmcif_rplchain), [`mmcif_reres`](#mmcif_reres), [`mmcif_shiftres`](#mmcif_shiftres), [`mmcif_fixinsert`](#mmcif_fixinsert), [`mmcif_delinsertion`](#mmcif_delinsertion), [`mmcif_reatom`](#mmcif_reatom), [`mmcif_rplresname`](#mmcif_rplresname), [`mmcif_uniqname`](#mmcif_uniqname), [`mmcif_element`](#mmcif_element), [`mmcif_b`](#mmcif_b), [`mmcif_occ`](#mmcif_occ) |
 | Identifiers | [`mmcif_label2auth`](#mmcif_label2auth), [`mmcif_auth2label`](#mmcif_auth2label) |
 | Models, files and assemblies | [`mmcif_splitchain`](#mmcif_splitchain), [`mmcif_splitmodel`](#mmcif_splitmodel), [`mmcif_mkensemble`](#mmcif_mkensemble), [`mmcif_chkensemble`](#mmcif_chkensemble), [`mmcif_merge`](#mmcif_merge), [`mmcif_assembly`](#mmcif_assembly) |
-| Categories and data blocks | [`mmcif_cat`](#mmcif_cat), [`mmcif_delcat`](#mmcif_delcat), [`mmcif_keepcat`](#mmcif_keepcat), [`mmcif_blocks`](#mmcif_blocks) |
+| Categories and data blocks | [`mmcif_cat`](#mmcif_cat), [`mmcif_delcat`](#mmcif_delcat), [`mmcif_keepcat`](#mmcif_keepcat), [`mmcif_rebuildmeta`](#mmcif_rebuildmeta), [`mmcif_blocks`](#mmcif_blocks) |
 | Inspect / format | [`mmcif_info`](#mmcif_info), [`mmcif_wc`](#mmcif_wc), [`mmcif_tofasta`](#mmcif_tofasta), [`mmcif_gap`](#mmcif_gap), [`mmcif_sort`](#mmcif_sort), [`mmcif_tidy`](#mmcif_tidy), [`mmcif_validate`](#mmcif_validate) |
 
 ## Fetch / convert
@@ -1286,6 +1286,60 @@ Usage:
 Example:
     mmcif_keepcat -_atom_site 1abc.cif
     mmcif_keepcat '-_entity*,_struct_asym' 1abc.cif
+
+This program is part of the mmcif-tools suite.
+```
+
+### mmcif_rebuildmeta
+
+Adds the core tables that an mmCIF file lacks, built from its atoms.
+
+```text
+Adds the core tables that an mmCIF file lacks, built from its atoms.
+
+Files written by other programs often hold only _atom_site, sometimes
+without label identifiers, while structure prediction programs and the
+other mmcif-tools read the molecules from the core tables (mmcif_validate
+warns about the ones missing). This tool adds, from the atoms, each of these
+tables the file does not have; the tables it has are left as they are:
+
+    _entity                  the molecules: polymer, non-polymer, water
+    _entity_poly             the polymers: type, one-letter sequences
+    _entity_poly_seq         their sequences
+    _struct_asym             the chains (label_asym_id) of each molecule
+    _pdbx_entity_nonpoly     the ligands and water
+    _chem_comp               the residue types
+    _pdbx_poly_seq_scheme    the residues of each chain along its sequence
+    _pdbx_nonpoly_scheme     the chains and numbers of the ligands and waters
+
+The sequences are those of the residues with atoms: residues missing from
+the model (see mmcif_gap) cannot be known and are not added. Copies of a
+molecule are one entity when their residue types agree at every position
+they share, so chains modelled over different ranges share an entity whose
+sequence has the residues of all of them. Residues are classified by name:
+the standard amino acids and nucleotides, water (HOH, WAT, DOD, ...), and
+the others by the polymer they sit in (a modified residue in a protein is
+'L-peptide linking') or as ligands; glycans are ligands, one per residue.
+
+When _atom_site has no label_entity_id, the label identifiers are assigned
+first, as mmcif_frompdb does: one label_asym_id per polymer chain, per
+ligand and for the waters of each chain, and label_seq_id along each
+entity's sequence. A polymer runs from the first to the last ATOM record of
+its author chain, with the HETATM residues bonded to its ends (a peptide or
+phosphodiester bond: MSE, ACE, NH2, ...); in a chain without a name, a new
+molecule starts where the author numbers start again. Copies are matched by
+author number (they must share half of the shorter one), and the sequence
+keeps the order of the chains, also where the author numbers are not in
+order (an inserted domain). A file with label_entity_id keeps its label
+identifiers. Elements are not assigned: see mmcif_element. Only the first
+data block with atoms changes.
+
+Usage:
+    mmcif_rebuildmeta <cif file>
+
+Example:
+    mmcif_rebuildmeta model.cif > model_full.cif
+    mmcif_keepcoord 1abc.cif | mmcif_rebuildmeta | mmcif_validate
 
 This program is part of the mmcif-tools suite.
 ```
