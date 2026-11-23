@@ -9,11 +9,14 @@ command names and options may still change.
   `_entity_poly`, `_entity_poly_seq`, `_struct_asym`, `_pdbx_entity_nonpoly`, `_chem_comp`, `_pdbx_poly_seq_scheme`
   and `_pdbx_nonpoly_scheme`; tables already there stay as they are. When `_atom_site` has no `label_entity_id`, the
   label ids are assigned first, as `mmcif_frompdb` assigns them. Copies of a molecule modelled over different
-  ranges share an entity, sequences keep the order of the chains (also where author numbers are not in order, as
-  in fusion proteins), and HETATM residues bonded to a chain's ends (MSE, ACE, NH2, ...) belong to it. The
-  sequences are those of the residues with atoms: missing residues cannot be known. On 12 PDB entries cut to their
-  atoms, the rebuilt tables are those of the entry, but for the missing residues, glycans (ligands here, `branched`
-  in the PDB) and residue types the PDB defines in its dictionary.
+  ranges share an entity, and so do copies numbered from elsewhere (1-8, 101-108) with the same sequence;
+  sequences keep the order of the chains (also where author numbers are not in order, as in fusion proteins);
+  HETATM residues bonded to a chain's ends (MSE, ACE, NH2, ...) belong to it, and in a chain of HETATM records only
+  (L-DNA) three or more bonded in a row are a polymer. The sequences are those of the residues with atoms: missing
+  residues cannot be known. On 71 entries cut to their atoms (X-ray, NMR, EM, neutron, DNA, RNA, hybrids, PNA,
+  ribosomes, fibrils, glycans, integrative, AlphaFold DB and ModelArchive models), the rebuilt tables are those of
+  the entry, but for the missing residues, glycans (ligands here, `branched` in the PDB) and residue types the PDB
+  defines in its dictionary (D-amino acids, sugars, L-DNA, ...).
 - **`mmcif_validate` warns when the file does not describe its molecules**: a missing core table (`_entity`,
   `_struct_asym`, `_chem_comp`, and for polymers `_entity_poly`, `_entity_poly_seq` and `_pdbx_poly_seq_scheme`) or
   `_atom_site.label_entity_id` column, and entities, chains, polymer residues or residue types of the atoms that these

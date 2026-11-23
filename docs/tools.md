@@ -1317,22 +1317,27 @@ the model (see mmcif_gap) cannot be known and are not added. Copies of a
 molecule are one entity when their residue types agree at every position
 they share, so chains modelled over different ranges share an entity whose
 sequence has the residues of all of them. Residues are classified by name:
-the standard amino acids and nucleotides, water (HOH, WAT, DOD, ...), and
-the others by the polymer they sit in (a modified residue in a protein is
-'L-peptide linking') or as ligands; glycans are ligands, one per residue.
+the standard amino acids (and UNK) and nucleotides, water (HOH, WAT, DOD,
+...), and the others by the polymer they sit in (a modified residue in a
+protein is 'L-peptide linking') or as ligands; glycans are ligands, one per
+residue. Types that only the PDB's dictionary knows (D-amino acids, sugars,
+L-DNA, ...) are not told apart.
 
 When _atom_site has no label_entity_id, the label identifiers are assigned
 first, as mmcif_frompdb does: one label_asym_id per polymer chain, per
 ligand and for the waters of each chain, and label_seq_id along each
 entity's sequence. A polymer runs from the first to the last ATOM record of
 its author chain, with the HETATM residues bonded to its ends (a peptide or
-phosphodiester bond: MSE, ACE, NH2, ...); in a chain without a name, a new
-molecule starts where the author numbers start again. Copies are matched by
-author number (they must share half of the shorter one), and the sequence
-keeps the order of the chains, also where the author numbers are not in
-order (an inserted domain). A file with label_entity_id keeps its label
-identifiers. Elements are not assigned: see mmcif_element. Only the first
-data block with atoms changes.
+phosphodiester bond: MSE, ACE, NH2, ...); in a chain without ATOM records,
+three or more residues bonded in a row are a polymer (L-DNA, a peptide of
+modified residues); in a chain without a name, a new molecule starts where
+the author numbers start again. Copies are matched by author number (they
+must share half of the shorter one), or, when each chain is numbered from
+elsewhere (1-8, 101-108, ...), by the same sequence. The sequence keeps the
+order of the chains, also where the author numbers are not in order (an
+inserted domain). A file with label_entity_id keeps its label identifiers.
+Elements are not assigned: see mmcif_element. Only the first data block
+with atoms changes.
 
 Usage:
     mmcif_rebuildmeta <cif file>

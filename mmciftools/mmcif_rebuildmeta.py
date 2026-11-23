@@ -38,22 +38,27 @@ the model (see mmcif_gap) cannot be known and are not added. Copies of a
 molecule are one entity when their residue types agree at every position
 they share, so chains modelled over different ranges share an entity whose
 sequence has the residues of all of them. Residues are classified by name:
-the standard amino acids and nucleotides, water (HOH, WAT, DOD, ...), and
-the others by the polymer they sit in (a modified residue in a protein is
-'L-peptide linking') or as ligands; glycans are ligands, one per residue.
+the standard amino acids (and UNK) and nucleotides, water (HOH, WAT, DOD,
+...), and the others by the polymer they sit in (a modified residue in a
+protein is 'L-peptide linking') or as ligands; glycans are ligands, one per
+residue. Types that only the PDB's dictionary knows (D-amino acids, sugars,
+L-DNA, ...) are not told apart.
 
 When _atom_site has no label_entity_id, the label identifiers are assigned
 first, as mmcif_frompdb does: one label_asym_id per polymer chain, per
 ligand and for the waters of each chain, and label_seq_id along each
 entity's sequence. A polymer runs from the first to the last ATOM record of
 its author chain, with the HETATM residues bonded to its ends (a peptide or
-phosphodiester bond: MSE, ACE, NH2, ...); in a chain without a name, a new
-molecule starts where the author numbers start again. Copies are matched by
-author number (they must share half of the shorter one), and the sequence
-keeps the order of the chains, also where the author numbers are not in
-order (an inserted domain). A file with label_entity_id keeps its label
-identifiers. Elements are not assigned: see mmcif_element. Only the first
-data block with atoms changes.
+phosphodiester bond: MSE, ACE, NH2, ...); in a chain without ATOM records,
+three or more residues bonded in a row are a polymer (L-DNA, a peptide of
+modified residues); in a chain without a name, a new molecule starts where
+the author numbers start again. Copies are matched by author number (they
+must share half of the shorter one), or, when each chain is numbered from
+elsewhere (1-8, 101-108, ...), by the same sequence. The sequence keeps the
+order of the chains, also where the author numbers are not in order (an
+inserted domain). A file with label_entity_id keeps its label identifiers.
+Elements are not assigned: see mmcif_element. Only the first data block
+with atoms changes.
 
 Usage:
     mmcif_rebuildmeta <cif file>
@@ -101,6 +106,9 @@ LABELS = ('label_asym_id', 'label_entity_id', 'label_seq_id', 'label_comp_id', '
 # The bonds that link residues in a polymer: (atom of a residue, atom of the next one, longest distance in A).
 LINKS = (('C', 'N', 1.75), ("O3'", 'P', 1.8))
 LINKING_ATOMS = frozenset(name for link in LINKS for name in link[:2])
+# In a chain without ATOM records, residues bonded in a row are a polymer from this many on.
+POLYMER_RUN = 3
+UNKNOWN_AMINO_ACID = 'UNK'  # a polypeptide(L) residue of unknown type (X)
 # _atom_site columns read: the residue (author and label ids) and the record.
 READ = ('auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code', 'auth_comp_id', 'label_comp_id', 'label_asym_id',
         'label_entity_id', 'label_seq_id', 'pdbx_PDB_model_num', 'group_PDB')
@@ -234,6 +242,9 @@ def _read(source):
                 continue
             residues = _Residues(ev)
             if block.columns is None:
+                if 'auth_comp_id' not in ev and 'label_comp_id' not in ev:
+                    raise _cif.CIFError('_atom_site has no residue names (auth_comp_id or label_comp_id): '
+                                        'the molecules cannot be told apart')
                 block.columns = list(ev.columns)
                 block.has_labels = 'label_entity_id' in ev
                 if block.has_labels and not ('label_asym_id' in ev and 'label_seq_id' in ev):
@@ -249,20 +260,77 @@ def _position(key, order):
     return (0, number, key[3] or '') if number is not None else (1, order, key[3] or '')
 
 
-def _merge(union, ranks, mine):
-    """Add the residues of a copy to its entity's sequence: each one new to
-    it goes right after the residue before it in the copy (so the sequence
-    keeps the order of the chains, also where author numbers are not in
-    order, as in fusion proteins)."""
-    before, added = None, len(union)
+def _shift(position, offset):
+    """A position with its author number moved by offset."""
+    return (0, position[1] + offset, position[2]) if offset and position[0] == 0 else position
+
+
+def _shared(mine, union, offset):
+    """How many positions a copy (its author numbers moved by offset) shares
+    with an entity's sequence, or 0 where their names disagree at one."""
+    shared = 0
     for p, names in mine.items():
-        here = union.get(p)
-        if here is None:
-            added += 1
-            here = union[p] = []
-            ranks[p] = (ranks[before] if before is not None else (0,)) + (added,)
-        here += [n for n in names if n not in here]
-        before = p
+        here = union.get(_shift(p, offset))
+        if here is not None:
+            if not set(names) & set(here):
+                return 0
+            shared += 1
+    return shared
+
+
+def _offsets(mine, union):
+    """The moves of a copy's author numbers that put its residue of the type
+    least frequent in the sequence on one of that type (copies numbered
+    1-8 and 101-108)."""
+    if any(p[0] for p in mine):
+        return []
+    at = {}  # (name, insertion code) -> author numbers in the sequence
+    for p, names in union.items():
+        if p[0] == 0:
+            for name in names:
+                at.setdefault((name, p[2]), []).append(p[1])
+    anchors = [(len(at[(name, p[2])]), p, name) for p, names in mine.items() for name in names if (name, p[2]) in at]
+    if not anchors:
+        return []
+    _, p, name = min(anchors)
+    return sorted({number - p[1] for number in at[(name, p[2])]} - {0}, key=abs)
+
+
+def _merge(union, order, mine):
+    """Add the residues of a copy to its entity's sequence (union: position
+    -> names; order: the positions in sequence order). Each residue new to it
+    goes between its neighbours in the copy: after the residue before it, and
+    before the next one the sequence has; residues of other copies in
+    between stay before it where their author number is lower. So the
+    sequence keeps the order of the chains, also where author numbers are
+    not in order (an inserted domain)."""
+    where = {p: i for i, p in enumerate(order)}
+    items = list(mine.items())
+    following = [None] * len(items)  # the next residue of the copy already in the sequence
+    nxt = None
+    for k in range(len(items) - 1, -1, -1):
+        following[k] = nxt
+        if items[k][0] in where:
+            nxt = items[k][0]
+    cursor, inserted = -1, 0  # where the copy's last residue is; residues added so far (before the cursor)
+
+    def index(p):
+        i = where[p] + inserted
+        return i if i < len(order) and order[i] == p else order.index(p)
+
+    for k, (p, names) in enumerate(items):
+        if p in where:
+            union[p] += [n for n in names if n not in union[p]]
+            cursor = index(p)
+            continue
+        limit = index(following[k]) if following[k] is not None else len(order)
+        slot = cursor + 1
+        while slot < limit and p[0] == 0 and order[slot][0] == 0 and order[slot][1] < p[1]:
+            slot += 1
+        order.insert(slot, p)
+        union[p] = list(names)
+        inserted += 1
+        cursor = slot
 
 
 def _linked(before, after):
@@ -298,6 +366,16 @@ def _assign(block):
         while i + 1 < len(chain) and _linked(block.residues[chain[i][0]], block.residues[chain[i + 1][0]]):
             i += 1
         last_atom[molecule] = chain[i][1]
+    for molecule, chain in members.items():  # no ATOM record: residues bonded in a row (L-DNA, D-peptides)
+        if molecule in first_atom:
+            continue
+        best, start = (0, None, None), 0
+        for i in range(1, len(chain) + 1):
+            if i == len(chain) or not _linked(block.residues[chain[i - 1][0]], block.residues[chain[i][0]]):
+                best = max(best, (i - start, -start, i - 1))
+                start = i
+        if best[0] >= POLYMER_RUN:
+            first_atom[molecule], last_atom[molecule] = chain[-best[1]][1], chain[best[2]][1]
     instance_of, maps = {}, {}  # key -> its instance; polymer instance -> {position: [names]}
     for key, (_, atom, order, _) in residues:
         molecule, name = key[:2], key[4]
@@ -315,43 +393,55 @@ def _assign(block):
     for key, _ in residues:
         asyms.setdefault(instance_of[key], asym_name(len(asyms)))
     # entities: copies of a polymer whose names agree at every position they share (half of the
-    # shorter one at least), each kind of ligand, and water
-    polymers, entity_of, ids = [], {}, {}  # [(entity id, union of the copies' residues, their ranks)]
+    # shorter one at least; or, numbered from elsewhere, the same sequence), each kind of ligand,
+    # and water
+    polymers, entity_of, ids, offset_of = [], {}, {}, {}  # [(entity id, {position: names}, positions in order)]
     for instance in asyms:
         if instance[0] == 'polymer':
             mine = maps[instance]
-            for entity, union, ranks in polymers:
-                shared = [p for p in mine if p in union]
-                if shared and 2 * len(shared) >= min(len(mine), len(union)) and \
-                        all(set(mine[p]) & set(union[p]) for p in shared):
-                    _merge(union, ranks, mine)
-                    entity_of[instance] = entity
+            match = None
+            for entity, union, order in polymers:
+                shared = _shared(mine, union, 0)
+                if shared and 2 * shared >= min(len(mine), len(union)):
+                    match = entity, union, order, 0
                     break
+            for entity, union, order in polymers if match is None else ():
+                if len(mine) == len(union):  # numbered from elsewhere: the same sequence, residue for residue
+                    offset = next((d for d in _offsets(mine, union) if _shared(mine, union, d) == len(mine)), None)
+                    if offset is not None:
+                        match = entity, union, order, offset
+                        break
+            if match is not None:
+                entity, union, order, offset = match
+                _merge(union, order, {_shift(p, offset): names for p, names in mine.items()})
+                offset_of[instance] = offset
             else:
                 entity = ids.setdefault(('polymer', len(polymers)), str(len(ids) + 1))
-                union = {p: list(names) for p, names in mine.items()}
-                polymers.append((entity, union, {p: (i,) for i, p in enumerate(mine, 1)}))
-                entity_of[instance] = entity
+                polymers.append((entity, {p: list(names) for p, names in mine.items()}, list(mine)))
+            entity_of[instance] = entity
         elif instance[0] == 'water':
             entity_of[instance] = ids.setdefault(('water',), str(len(ids) + 1))
         else:
             entity_of[instance] = ids.setdefault(('ligand', instance[1][4]), str(len(ids) + 1))
     numbers = {}  # (entity, position) -> label_seq_id
-    for entity, union, ranks in polymers:
-        for n, p in enumerate(sorted(union, key=ranks.get), 1):
+    for entity, union, order in polymers:
+        for n, p in enumerate(order, 1):
             numbers[(entity, p)] = str(n)
     labels = {}
     for key, (_, atom, order, _) in residues:
         instance = instance_of[key]
         entity = entity_of[instance]
-        seq = numbers[(entity, _position(key, order))] if instance[0] == 'polymer' else '.'
+        if instance[0] == 'polymer':
+            seq = numbers[(entity, _shift(_position(key, order), offset_of.get(instance, 0)))]
+        else:
+            seq = '.'
         labels[key] = (asyms[instance], entity, seq)
     return labels
 
 
 def _kind(names):
     """The type of a polymer made of these residue names."""
-    amino = sum(n in AMINO_ACIDS for n in names)
+    amino = sum(n in AMINO_ACIDS or n == UNKNOWN_AMINO_ACID for n in names)
     dna, rna = sum(n in DNA for n in names), sum(n in RNA for n in names)
     if amino and amino >= dna + rna:
         return 'polypeptide(L)'

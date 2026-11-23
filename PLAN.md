@@ -1244,3 +1244,44 @@ their label ids, then also without them:
   residue at a chain's start and a heme next to its end, an inserted domain, chains without a name, tables kept,
   label ids kept, a second run, no atoms, incomplete label ids) and 2 on real entries. Unit suite: 273 tests pass;
   the smoke test (54 commands) and `zensical build --strict` are clean.
+
+**Stress test (2026-11-18),** after the commits `d93da1c` (validate) and `6fdd5bb` (the tool): 59 more entries,
+one or two of the smallest of each category of the stress selections (`../mmcif-tools-stress/selection.csv` and
+`round2/selection.csv`; X-ray from 0.94 to 4 A, NMR solution and solid, 100+ models, cryo-EM single particle,
+helical, subtomogram, neutron, electron crystallography, fibre, powder, DNA, RNA, protein-DNA/RNA, a DNA/RNA hybrid,
+PNA, D-amino acids, glycans, an oligosaccharide alone, peptides, membrane, antibodies, Fe-S, heme, SeMet,
+UNK residues, BIRD peptides, icosahedral, long chains, microheterogeneity, insertion codes, chains differing only by
+case, integrative entries, 2 AlphaFold DB and 2 ModelArchive models; 12 MB, kept in
+`../mmcif-tools-stress/rebuild/data` with the scripts). With the 12 of `tests/real`, 71 entries, in three ways: cut
+to their atoms with the label ids, without them, and through the PDB format (`mmcif_topdb | mmcif_frompdb`, with
+and without label ids; 3 entries do not fit it). No crash in any; every output idempotent and without errors.
+It found five faults, now fixed:
+
+- **The order across copies** (8YH9, 9HLE). A residue that only a later copy has went after every residue added
+  after the same neighbour by earlier copies: copy H added 75-76 after 55, then copy G's 56-57 went after them.
+  The sequence is now a list where a new residue goes between its neighbours in the copy (after the residue before
+  it, before the next one the sequence has; residues of other copies in that gap stay before it when their author
+  number is lower).
+- **Copies numbered from elsewhere** (7LQF: 64 fibril chains numbered 1-8, 101-108, 201-208, 301-308; 1RRU: PNA
+  strands 1-8 and 9-16; 3J0O): without label ids they shared no author number, so they were 4, 2 and 2 entities. A
+  copy that matches no entity by author number now matches one with the same sequence, residue for residue, its
+  numbers moved (decision 27 extended). Matching half of the longer one was tried first: it merged two different
+  RNA fragments of 3J0O (UCCCU and CCUAAG share CCU), and on the alternating sequence of 8A71 (CGCGCG) it moved
+  the numbers by 4 instead of 6.
+- **Polymers of HETATM records only** (8A71, an L-DNA hexamer of 0DC and 0DG): with no ATOM record, every residue
+  was a ligand. In a chain without ATOM records, three or more residues bonded in a row are now a polymer (two stay
+  ligands: a dipeptide inhibitor).
+- **UNK** (5NUI, 8OVC: chains of unknown residues) gave the polymer type `other`; UNK now counts as an amino acid,
+  so the chain is `polypeptide(L)`, `(UNK)` and `X` in the one-letter codes, `L-peptide linking`, as in the PDB.
+- **No residue names** (`auth_comp_id` and `label_comp_id` both missing): `?` everywhere; now an error that says
+  so.
+
+**Then:** with the label ids, 52 of the 71 come back as the entry; the other 19 differ only by the limits above:
+glycans (9 entries), residue types from the PDB's dictionary (D-amino acids, saccharides, PNA `peptide-like`,
+L-DNA, 2'-fluoro nucleotides as `DNA linking`, deoxyinosine in a hybrid, caps ACE/NH2/NME as `non-polymer`,
+peptide-like inhibitors), and 7NRF's `auth_seq_num` (2001 in the PDB, not in the atoms). Without the label ids,
+chains and entities group the residues as the entry does but for the glycans and 8OVC's two chains of UNK only
+(the same length, so one entity here); no order breaks; numbers are the entry's where every residue has atoms.
+Through the PDB format, all 136 rebuilds pass `mmcif_validate` with no warning. 4V6X takes 1.5 s with label ids,
+3.6 s without. 5 more tests in `tests/test_rebuildmeta.py`, which all fail on `6fdd5bb`. Unit suite: 278 tests pass; the smoke
+test (on a fresh install) and `zensical build --strict` are clean.
