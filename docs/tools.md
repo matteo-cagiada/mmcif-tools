@@ -1,6 +1,6 @@
 # mmcif-tools: tool reference
 
-Version 0.2.1, 54 tools. Generated from the tools' `--help` texts by `python tools/make_docs.py`; do not edit by hand.
+Version 0.3.0, 54 tools. Generated from the tools' `--help` texts by `python tools/make_docs.py`; do not edit by hand.
 
 | Group | Tools |
 |---|---|

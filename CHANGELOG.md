@@ -3,7 +3,7 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
-## Unreleased
+## 0.3.0 (2026-11-26): files that do not describe their molecules
 
 - **New tool: `mmcif_rebuildmeta`** adds the core tables a file lacks, built from its atoms: `_entity`,
   `_entity_poly`, `_entity_poly_seq`, `_struct_asym`, `_pdbx_entity_nonpoly`, `_chem_comp`, `_pdbx_poly_seq_scheme`
