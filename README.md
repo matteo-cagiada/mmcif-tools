@@ -404,17 +404,17 @@ whenever possible: it helps support the development of the software. You can get
 [CITATION.cff](https://github.com/matteo-cagiada/mmcif-tools/blob/main/CITATION.cff)) or from the
 [Zenodo record](https://doi.org/10.5281/zenodo.23966235).
 
-In BibTeX, for version 0.2.1:
+In BibTeX, for version 0.3.0:
 
 ```bibtex
 @software{cagiada2026mmciftools,
   author    = {Cagiada, Matteo},
   title     = {{mmcif-tools: command-line tools for mmCIF files}},
-  version   = {0.2.1},
+  version   = {0.3.0},
   publisher = {Zenodo},
   year      = {2026},
-  doi       = {10.5281/zenodo.24114923},
-  url       = {https://doi.org/10.5281/zenodo.24114923}
+  doi       = {10.5281/zenodo.24597904},
+  url       = {https://doi.org/10.5281/zenodo.24597904}
 }
 ```
 
