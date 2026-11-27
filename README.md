@@ -20,7 +20,7 @@ package needs only the Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.2.1, pre-release: 53 available tools**
+**CURRENT VERSION: Version 0.3.0, pre-release: 54 available tools**
 
 
 ## Tools
@@ -64,6 +64,7 @@ The full `--help` text of every tool is in the [tool reference](https://matteo-c
 | | `mmcif_assembly` | Build a biological assembly from the file's symmetry operations (`-1`) |
 | Categories / blocks | `mmcif_cat` | Print one category as a table (TSV): `-_atom_site.id,Cartn_x` |
 | | `mmcif_delcat` / `mmcif_keepcat` | Remove / keep whole categories (`-_struct_conf`, `'-_pdbx_validate*'`) |
+| | `mmcif_rebuildmeta` | Add the core tables a file lacks (entities, chains, sequences, residue types), built from the atoms |
 | | `mmcif_blocks` | List the data blocks, or extract some (`-ATP`) |
 | Inspect / format | `mmcif_info` | Title, method, resolution, organisms, entities, assemblies |
 | | `mmcif_wc` | Counts: models, chains, residues, atoms, … |
@@ -94,6 +95,9 @@ mmcif_fetch AF-P69905-F1 | mmcif_info
 # The sequences, one FASTA record per chain (the deposited sequences: no ligands or waters)
 mmcif_tofasta -multi,seqres 4hhb.cif > 4hhb.fasta
 
+# A model written by another program (atoms only): add its entities, chains, sequences and residue types
+mmcif_rebuildmeta model.cif > model_described.cif
+
 # A table of atoms for awk, R or pandas (tab-separated, one header line)
 mmcif_cat -_atom_site.auth_asym_id,auth_seq_id,label_comp_id,B_iso_or_equiv 4hhb.cif > atoms.tsv
 
@@ -122,7 +126,9 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
   `mmcif_selentity -polymer 4hhb.cif | mmcif_tofasta -multi`.
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
-- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
+- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables, and warns
+  when the file does not describe its molecules (entities, chains, sequences, residue types), as files written by
+  other programs often do; `mmcif_rebuildmeta` adds those tables, built from the atoms.
 
 #### Files for prediction and MD programs
 
@@ -316,7 +322,9 @@ seq_id	mon_id	pdb_seq_num	auth_seq_num
   each molecule) and the counts follow. Rows of removed models (`mmcif_selmodel`) and conformers
   (`mmcif_selaltloc`) go too. Residues that had no atoms in the first place stay.
 - **Checking:** `mmcif_validate` warns about rows out of step with the atoms, e.g. in a file edited by another
-  program.
+  program, and about atoms that the core tables (`_entity`, `_struct_asym`, `_entity_poly_seq`,
+  `_pdbx_poly_seq_scheme`, `_chem_comp`) do not describe, or those tables missing; `mmcif_rebuildmeta` adds the
+  missing ones from the atoms.
 
 `mmcif_assembly`, `mmcif_merge` and `mmcif_mkensemble` make new chains; the metadata keeps describing the chains of
 the first file. In a file with several data blocks, only the first block's tables follow. Prediction and simulation programs read few of these tables:

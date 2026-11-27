@@ -285,6 +285,8 @@ Decided for phase 4 (2026-10-24):
     the README's badge), 10.5281/zenodo.23966236 for 0.1.2. After each release, the README's BibTeX entry gets
     the new version and its DOI from Zenodo. 0.2.0 (2026-11-10): the metadata follows the edits (§15, §16). 0.2.1
     (2026-11-10): the assembly count follows the removals, and the smoke test checks the right installation (§17).
+    0.3.0 (2026-11-26): `mmcif_rebuildmeta`, and `mmcif_validate` warns about molecules the file does not describe
+    (§18).
 18. **Python 3.9 stays while it costs nothing** (the code is stdlib only and macOS's own python3 is 3.9); CI
     also covers the newest versions, up to 3.15.
 19. **Four more mmCIF tools:** `mmcif_selentity` / `mmcif_delentity`, `mmcif_assembly`, `mmcif_info`.
@@ -1123,3 +1125,165 @@ are `monomeric` to `eicosameric` for 1 to 20 chains (11 to 20 also as `11-meric`
 the first ones on the PATH: with a venv's Python and miniconda's 0.1.0 first on the PATH, it ran 0.1.0's commands
 and passed. It now runs the commands pip recorded for that Python's mmcif-tools (its RECORD), prints the version and
 the folder of the commands, and fails when that Python has no mmcif-tools.
+
+## 18. Molecules the file does not describe (2026-11-16)
+
+Files written by other programs often hold only `_atom_site`, sometimes without label ids. Before this, nothing
+reported it: `mmcif_validate` called a file valid with atoms alone (only `_atom_site` is required), and
+`mmcif_keepcat -_atom_site` on 4HHB passed with no warning. No tool rebuilds the core tables either:
+`mmcif_delmeta` re-adds `_pdbx_poly_seq_scheme` when the entity and sequence tables are there, `mmcif_element`
+fills in elements, and `mmcif_topdb | mmcif_frompdb` assigns label ids (columns only, and only for structures that
+fit the PDB format).
+
+### 18.1 `mmcif_validate` reports it (done)
+
+New warnings (the exit status does not change), checked in the same reading of the file, per data block with atoms:
+
+- **A missing core table:** `_entity`, `_struct_asym`, `_chem_comp`, and when there are polymers (atoms with a
+  `label_seq_id`, or an entity of type polymer) `_entity_poly`, `_entity_poly_seq` and `_pdbx_poly_seq_scheme`; or no
+  `_atom_site.label_entity_id` column.
+- **Atoms the tables do not describe:** an entity of the atoms not in `_entity`; a chain (`label_asym_id`) not in
+  `_struct_asym`, or with another entity there, or listed there for several molecules; a residue of a polymer entity
+  (entity, `label_seq_id`, residue type) not in `_entity_poly_seq`, or (chain, number, type) not in
+  `_pdbx_poly_seq_scheme`; a residue type not in `_chem_comp`. Branched molecules and ligands are not looked for in
+  the polymer tables.
+
+**Checked:** the 12 entries of `tests/real` (X-ray, NMR, DNA, glycans, a ribosome, an AlphaFold DB model) have no
+warning. Every tool call of the suite on the entries under 1 MB, with and without `--label`, gets the new warnings
+only where the file is really incomplete: `mmcif_keepcoord` (atoms only), `mmcif_reres --label` and
+`mmcif_shiftres --label` (residues no longer at their place in `_entity_poly_seq`; `mmcif_shiftres` already warns
+when it runs), and `mmcif_chain --label` (one label chain for every molecule). 4V6X takes 4.63 s against 4.46 s.
+`TestValidateMolecules` in `tests/test_refs.py` (5 tests on a small hand-written file) and 2 more on 4HHB in
+`TestValidate`; 6 of them fail on the code before. Unit suite: 263 tests pass.
+
+### 18.2 `mmcif_rebuildmeta` (written 2026-11-18)
+
+**What it does:** adds, from the atoms, the core tables a file lacks, so that `mmcif_validate` finds the molecules
+described. Tables already there are left as they are (see the decisions below). Then `mmcif_delmeta` and the other
+tools work on the file as on a PDB entry.
+
+**Input cases:**
+
+1. Atoms with label ids, no core tables (`mmcif_keepcoord`, `mmcif_delmeta -all`, many writers).
+2. Atoms without `label_entity_id`, or without label ids at all (author ids only).
+3. Some tables present (e.g. `_entity` and `_struct_asym` but no sequences, or no `_pdbx_poly_seq_scheme`).
+
+**What it writes,** in the order of PDB entries, each table only when missing:
+
+| Table | From the atoms |
+|---|---|
+| `_atom_site` label ids | When missing: `label_asym_id`, `label_entity_id`, `label_seq_id` as `mmcif_frompdb` assigns them (one label chain per polymer, per ligand, and for the waters of each chain; polymers with the same sequence share an entity; `label_seq_id` 1, 2, ... along the residues with atoms); `label_comp_id` / `label_atom_id` copied from the author ones |
+| `_entity` | `id`, `type` (polymer, non-polymer, branched, water), `pdbx_number_of_molecules`, `pdbx_description` `?` |
+| `_entity_poly` | `type` (`polypeptide(L)`, `polydeoxyribonucleotide`, `polyribonucleotide`, or `other`), `nstd_monomer`, `pdbx_seq_one_letter_code(_can)` (lines of up to 80, `(MSE)` for non-standard residues), `pdbx_strand_id` |
+| `_entity_poly_seq` | `entity_id`, `num`, `mon_id`, `hetero` (`y` where two residue types share a position) |
+| `_struct_asym` | `id`, `entity_id`, `pdbx_blank_PDB_chainid_flag`, `pdbx_modified`, `details` `?` |
+| `_pdbx_poly_seq_scheme` | as `mmcif_delmeta` rebuilds it (`_Present.rows`) |
+| `_pdbx_entity_nonpoly`, `_pdbx_nonpoly_scheme` | the ligands and waters: entity, residue type, chain and numbers |
+| `_chem_comp` | `id`, `type`, `mon_nstd_flag`, `name` / `formula` `?`; the type from a table of the standard residues (`L-peptide linking`, `peptide linking` for GLY, `RNA linking`, `DNA linking`), `non-polymer` for ligands, `HOH` as water |
+
+**Reuse:** `mmcif_frompdb.assign_labels` (to generalize from PDB records to `_atom_site` rows: no TER records in
+mmCIF, so a polymer runs from the first to the last ATOM record of a chain, as in PDB files without TER),
+`mmcif_delmeta` (`_Present.rows`, `table`), `mmcif_tofasta.THREE_TO_ONE`, `mmcif_element` for missing
+`type_symbol`; `_cif` for writing (new loops after the existing categories, in a fixed order).
+
+**The main limit:** the sequences come from the residues with atoms. Residues missing from the model (gaps) cannot
+be known, so `_entity_poly_seq` has only the observed residues, and a chain modelled in two pieces gets one
+sequence without the gap. The help says so, and suggests `mmcif_gap` to see the breaks.
+
+**Decisions (2026-11-18):**
+
+26. **Only the missing tables are added.** Tables already in the file stay as they are; an option to rebuild them
+    all from the atoms (`-all`) can come later if needed.
+27. **Copies of a molecule share an entity** when their residue types agree at every position they share, so
+    chains modelled over different ranges (A 1-141, C 3-141) are one entity, as in the PDB entry and as prediction
+    programs expect. The positions are the `label_seq_id` in a file that has label ids (they are kept, 30), else the
+    author numbers; the entity's sequence is the union of the copies' observed residues at those positions.
+28. **Gaps stay gaps:** the sequences hold the observed residues only (no `UNK` for missing author numbers); the help
+    says so and points to `mmcif_gap`.
+29. **Non-standard residues** (MSE, SEP, ...) get their `_chem_comp.type` from the polymer they sit in
+    (`L-peptide linking` in a protein, `RNA linking` / `DNA linking` in a nucleic acid), so no CCD is needed.
+30. **Label ids are assigned only when `label_entity_id` is missing;** a file that has them keeps them.
+
+**How to check it:** strip each entry of `tests/real` to its atoms (`mmcif_keepcat -_atom_site`) and rebuild: the
+entities, chains, sequences (chains without missing residues), schemes and ligand tables should match the
+originals, and the differences should be only those the limits explain. `mmcif_validate` gives none of the 18.1
+warnings, a second run changes nothing, and pipes work. Also a file with author ids only (label columns removed),
+an MD-style file (blank chains), and later the stress-test entries (their downloads are in the Trash).
+
+**Written (2026-11-18),** in `mmciftools/mmcif_rebuildmeta.py`, as planned, with what the tests showed:
+
+- **The order of the chain.** Placing a copy's residues by sorting author numbers put the T4 lysozyme of 2RH1
+  (numbered 1002-1161 inside a receptor numbered 29-342) at the end of the sequence. A sequence now keeps the order
+  of its first chain, and a residue of another copy that it lacks goes right after the residue before it in that
+  copy.
+- **Copies must overlap:** they share an entity when their residue types agree at every author number they share
+  and they share at least half of the shorter one (two different chains both numbered from 1 disagree; chains
+  numbered apart share nothing).
+- **HETATM residues at the ends.** A polymer runs from the first to the last ATOM record of its chain, as in
+  `mmcif_frompdb`, and also takes the HETATM residues bonded to its ends (C-N up to 1.75 A, O3'-P up to 1.8 A):
+  an N-terminal MSE, ACE or PCA, a C-terminal NH2. A heme numbered right after the chain's last residue is not
+  bonded to it and stays a ligand.
+- **Chains without a name** (MD output): a new molecule starts where the author numbers start again, and the
+  schemes give `?` as their author chain, as the atoms do (not the label chain).
+- **A comment before `data_`** is not a data block (the first version counted it and wrote nothing).
+
+**Checked:** the 12 entries of `tests/real` cut to their atoms (`mmcif_keepcat -_atom_site`) and rebuilt, with
+their label ids, then also without them:
+
+- With the label ids: `_entity`, `_struct_asym`, `_entity_poly` (type, chains, one-letter code where every residue
+  has atoms, the modified nucleotides of 1EHZ included), `_entity_poly_seq` and `_pdbx_poly_seq_scheme` (the
+  residues with atoms), `_pdbx_nonpoly_scheme` and the `_chem_comp` types are those of the entry, but for the
+  glycans of 2RH1 and 6VXX (ligands here, `branched` in the PDB) and 1PPB's inhibitor 0G6 (`peptide-like` in the
+  PDB's dictionary, `non-polymer` here).
+- Without them: the assigned label chains and entities group the residues as the entry does (glycans aside, one
+  label chain per sugar), copies agree on every position, and along every chain the numbers are in the entry's
+  order. They are the entry's numbers where every residue has atoms (1D3Z, 1EHZ, 1EJG, 1PPB, 4HHB, the AlphaFold
+  model), and shifted by the missing residues elsewhere. The three spike chains of 6VXX, modelled over different
+  ranges, are one entity.
+- Every output passes `mmcif_validate` with no warning, a second run changes nothing, and files from
+  `mmcif_frompdb` (with or without author chains) too. 4V6X (23 MB of atoms) takes 1.4 s and 53 MB.
+- `tests/test_rebuildmeta.py`: 8 tests on small hand-written files (copies over different ranges with a modified
+  residue at a chain's start and a heme next to its end, an inserted domain, chains without a name, tables kept,
+  label ids kept, a second run, no atoms, incomplete label ids) and 2 on real entries. Unit suite: 273 tests pass;
+  the smoke test (54 commands) and `zensical build --strict` are clean.
+
+**Stress test (2026-11-18),** after the commits `d93da1c` (validate) and `6fdd5bb` (the tool): 59 more entries,
+one or two of the smallest of each category of the stress selections (`../mmcif-tools-stress/selection.csv` and
+`round2/selection.csv`; X-ray from 0.94 to 4 A, NMR solution and solid, 100+ models, cryo-EM single particle,
+helical, subtomogram, neutron, electron crystallography, fibre, powder, DNA, RNA, protein-DNA/RNA, a DNA/RNA hybrid,
+PNA, D-amino acids, glycans, an oligosaccharide alone, peptides, membrane, antibodies, Fe-S, heme, SeMet,
+UNK residues, BIRD peptides, icosahedral, long chains, microheterogeneity, insertion codes, chains differing only by
+case, integrative entries, 2 AlphaFold DB and 2 ModelArchive models; 12 MB, kept in
+`../mmcif-tools-stress/rebuild/data` with the scripts). With the 12 of `tests/real`, 71 entries, in three ways: cut
+to their atoms with the label ids, without them, and through the PDB format (`mmcif_topdb | mmcif_frompdb`, with
+and without label ids; 3 entries do not fit it). No crash in any; every output idempotent and without errors.
+It found five faults, now fixed:
+
+- **The order across copies** (8YH9, 9HLE). A residue that only a later copy has went after every residue added
+  after the same neighbour by earlier copies: copy H added 75-76 after 55, then copy G's 56-57 went after them.
+  The sequence is now a list where a new residue goes between its neighbours in the copy (after the residue before
+  it, before the next one the sequence has; residues of other copies in that gap stay before it when their author
+  number is lower).
+- **Copies numbered from elsewhere** (7LQF: 64 fibril chains numbered 1-8, 101-108, 201-208, 301-308; 1RRU: PNA
+  strands 1-8 and 9-16; 3J0O): without label ids they shared no author number, so they were 4, 2 and 2 entities. A
+  copy that matches no entity by author number now matches one with the same sequence, residue for residue, its
+  numbers moved (decision 27 extended). Matching half of the longer one was tried first: it merged two different
+  RNA fragments of 3J0O (UCCCU and CCUAAG share CCU), and on the alternating sequence of 8A71 (CGCGCG) it moved
+  the numbers by 4 instead of 6.
+- **Polymers of HETATM records only** (8A71, an L-DNA hexamer of 0DC and 0DG): with no ATOM record, every residue
+  was a ligand. In a chain without ATOM records, three or more residues bonded in a row are now a polymer (two stay
+  ligands: a dipeptide inhibitor).
+- **UNK** (5NUI, 8OVC: chains of unknown residues) gave the polymer type `other`; UNK now counts as an amino acid,
+  so the chain is `polypeptide(L)`, `(UNK)` and `X` in the one-letter codes, `L-peptide linking`, as in the PDB.
+- **No residue names** (`auth_comp_id` and `label_comp_id` both missing): `?` everywhere; now an error that says
+  so.
+
+**Then:** with the label ids, 52 of the 71 come back as the entry; the other 19 differ only by the limits above:
+glycans (9 entries), residue types from the PDB's dictionary (D-amino acids, saccharides, PNA `peptide-like`,
+L-DNA, 2'-fluoro nucleotides as `DNA linking`, deoxyinosine in a hybrid, caps ACE/NH2/NME as `non-polymer`,
+peptide-like inhibitors), and 7NRF's `auth_seq_num` (2001 in the PDB, not in the atoms). Without the label ids,
+chains and entities group the residues as the entry does but for the glycans and 8OVC's two chains of UNK only
+(the same length, so one entity here); no order breaks; numbers are the entry's where every residue has atoms.
+Through the PDB format, all 136 rebuilds pass `mmcif_validate` with no warning. 4V6X takes 1.5 s with label ids,
+3.6 s without. 5 more tests in `tests/test_rebuildmeta.py`, which all fail on `6fdd5bb`. Unit suite: 278 tests pass; the smoke
+test (on a fresh install) and `zensical build --strict` are clean.

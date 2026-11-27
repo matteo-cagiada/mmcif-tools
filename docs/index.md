@@ -22,7 +22,7 @@ package needs only the Python standard library (Python 3.9 or newer).
 mmcif_fetch 1brs | mmcif_selchain -A,D | mmcif_delentity -non-polymer,water | mmcif_reres -1 > clean.cif
 ```
 
-**CURRENT VERSION: Version 0.2.1, pre-release: 53 available tools**
+**CURRENT VERSION: Version 0.3.0, pre-release: 54 available tools**
 
 ## Tools
 
@@ -65,6 +65,7 @@ The full `--help` text of every tool is in the [tool reference](tools.md).
 | | `mmcif_assembly` | Build a biological assembly from the file's symmetry operations (`-1`) |
 | Categories / blocks | `mmcif_cat` | Print one category as a table (TSV): `-_atom_site.id,Cartn_x` |
 | | `mmcif_delcat` / `mmcif_keepcat` | Remove / keep whole categories (`-_struct_conf`, `'-_pdbx_validate*'`) |
+| | `mmcif_rebuildmeta` | Add the core tables a file lacks (entities, chains, sequences, residue types), built from the atoms |
 | | `mmcif_blocks` | List the data blocks, or extract some (`-ATP`) |
 | Inspect / format | `mmcif_info` | Title, method, resolution, organisms, entities, assemblies |
 | | `mmcif_wc` | Counts: models, chains, residues, atoms, … |

@@ -3,6 +3,28 @@
 All notable changes to mmcif-tools. Versions follow [semantic versioning](https://semver.org/); before 1.0,
 command names and options may still change.
 
+## 0.3.0 (2026-11-26): files that do not describe their molecules
+
+- **New tool: `mmcif_rebuildmeta`** adds the core tables a file lacks, built from its atoms: `_entity`,
+  `_entity_poly`, `_entity_poly_seq`, `_struct_asym`, `_pdbx_entity_nonpoly`, `_chem_comp`, `_pdbx_poly_seq_scheme`
+  and `_pdbx_nonpoly_scheme`; tables already there stay as they are. When `_atom_site` has no `label_entity_id`, the
+  label ids are assigned first, as `mmcif_frompdb` assigns them. Copies of a molecule modelled over different
+  ranges share an entity, and so do copies numbered from elsewhere (1-8, 101-108) with the same sequence;
+  sequences keep the order of the chains (also where author numbers are not in order, as in fusion proteins);
+  HETATM residues bonded to a chain's ends (MSE, ACE, NH2, ...) belong to it, and in a chain of HETATM records only
+  (L-DNA) three or more bonded in a row are a polymer. The sequences are those of the residues with atoms: missing
+  residues cannot be known. On 71 entries cut to their atoms (X-ray, NMR, EM, neutron, DNA, RNA, hybrids, PNA,
+  ribosomes, fibrils, glycans, integrative, AlphaFold DB and ModelArchive models), the rebuilt tables are those of
+  the entry, but for the missing residues, glycans (ligands here, `branched` in the PDB) and residue types the PDB
+  defines in its dictionary (D-amino acids, sugars, L-DNA, ...).
+- **`mmcif_validate` warns when the file does not describe its molecules**: a missing core table (`_entity`,
+  `_struct_asym`, `_chem_comp`, and for polymers `_entity_poly`, `_entity_poly_seq` and `_pdbx_poly_seq_scheme`) or
+  `_atom_site.label_entity_id` column, and entities, chains, polymer residues or residue types of the atoms that these
+  tables do not list (a label chain listed for several molecules too). Files written by other programs often lack
+  them, and structure prediction programs read them. They are warnings, so the exit status does not change. PDB
+  entries and AlphaFold DB models have none; the output of `mmcif_keepcoord` (atoms only) and `--label` renumbering
+  (residues no longer at their place in `_entity_poly_seq`) get them.
+
 ## 0.2.1 (2026-11-10): the assembly count follows the removals
 
 - **The assembly count follows the removals.** When an assembly loses polymer chains,

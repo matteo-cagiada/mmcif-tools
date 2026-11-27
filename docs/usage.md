@@ -21,6 +21,9 @@ mmcif_fetch AF-P69905-F1 | mmcif_info
 # The sequences, one FASTA record per chain (the deposited sequences: no ligands or waters)
 mmcif_tofasta -multi,seqres 4hhb.cif > 4hhb.fasta
 
+# A model written by another program (atoms only): add its entities, chains, sequences and residue types
+mmcif_rebuildmeta model.cif > model_described.cif
+
 # A table of atoms for awk, R or pandas (tab-separated, one header line)
 mmcif_cat -_atom_site.auth_asym_id,auth_seq_id,label_comp_id,B_iso_or_equiv 4hhb.cif > atoms.tsv
 
@@ -49,7 +52,9 @@ mmcif_delcat '-_pdbx_validate*,_struct_conf,_struct_sheet_range' 4hhb.cif > 4hhb
   `mmcif_selentity -polymer 4hhb.cif | mmcif_tofasta -multi`.
 - Quote options that contain `*`, so that the shell does not expand them: `'-_pdbx_validate*'`.
 - Input files can be gzip-compressed (`.cif.gz`); outputs are plain text, so pipe them to `gzip` to compress.
-- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables.
+- After editing, `mmcif_validate` checks the syntax, the coordinates and the links between tables, and warns
+  when the file does not describe its molecules (entities, chains, sequences, residue types), as files written by
+  other programs often do; `mmcif_rebuildmeta` adds those tables, built from the atoms.
 
 ### Files for prediction and MD programs
 
